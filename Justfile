@@ -31,4 +31,4 @@ deploy-init:
     pnpm exec wrangler pages project create audle --production-branch main
 
 deploy: verify
-    pnpm exec wrangler pages deploy dist --project-name audle
+    pnpm exec wrangler pages deploy dist --project-name audle --branch main
