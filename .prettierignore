@@ -1,0 +1,7 @@
+dist/
+.svelte-check/
+.svelte-kit/
+node_modules/
+.wrangler/
+playwright-report/
+test-results/

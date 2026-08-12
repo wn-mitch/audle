@@ -1,0 +1,80 @@
+:root {
+  font-family: ui-rounded, 'Avenir Next', 'Segoe UI', sans-serif;
+  color: var(--audle-text);
+  background: var(--audle-page);
+  color-scheme: dark;
+  --audle-page: oklch(0.095 0.012 255);
+  --audle-deck: oklch(0.145 0.014 255);
+  --audle-deck-raised: oklch(0.19 0.016 255);
+  --audle-control: oklch(0.232 0.018 255);
+  --audle-control-hover: oklch(0.27 0.02 255);
+  --audle-control-pressed: oklch(0.158 0.015 255);
+  --audle-well: oklch(0.072 0.01 255);
+  --audle-well-raised: oklch(0.102 0.012 255);
+  --audle-outline: oklch(0.42 0.024 255);
+  --audle-outline-subtle: oklch(0.285 0.018 255);
+  --audle-edge-light: oklch(0.61 0.026 255 / 0.34);
+  --audle-edge-shadow: oklch(0.03 0.008 255 / 0.82);
+  --audle-text: oklch(0.935 0.012 255);
+  --audle-text-muted: oklch(0.715 0.018 255);
+  --audle-text-dim: oklch(0.565 0.017 255);
+  --audle-loop-surface: oklch(0.23 0.055 302);
+  --audle-loop-light: oklch(0.72 0.18 302);
+  --audle-one-shot-surface: oklch(0.24 0.05 215);
+  --audle-one-shot-light: oklch(0.78 0.14 215);
+  --audle-selection-surface: oklch(0.25 0.06 28);
+  --audle-selection-light: oklch(0.73 0.18 28);
+  --audle-playback-surface: oklch(0.24 0.055 132);
+  --audle-playback-light: oklch(0.82 0.16 132);
+  --audle-record-surface: oklch(0.24 0.06 31);
+  --audle-record-light: oklch(0.67 0.2 31);
+  --audle-focus: oklch(0.83 0.125 260);
+  --audle-disabled: oklch(0.2 0.012 255);
+  --audle-disabled-ink: oklch(0.68 0.016 255);
+  --audle-grid-major: oklch(0.38 0.022 255);
+  --audle-grid-minor: oklch(0.225 0.016 255);
+  --audle-deck-edge: inset 0 1px 0 var(--audle-edge-light), inset 0 -2px 0 var(--audle-edge-shadow);
+  --audle-control-rest:
+    inset 0 1px 0 var(--audle-edge-light), inset 0 -2px 0 var(--audle-edge-shadow);
+  --audle-control-contact:
+    inset 0 2px 3px var(--audle-edge-shadow), inset 0 1px 0 oklch(0.02 0.006 255 / 0.45);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-block-size: 100%;
+  margin: 0;
+}
+
+body {
+  min-inline-size: 320px;
+  background: var(--audle-page);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--audle-focus);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
