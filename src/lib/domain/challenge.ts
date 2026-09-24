@@ -1,7 +1,7 @@
 import { samplesForRole } from '../data/samples';
 import type { ChallengeSnapshot, PitchClass, SampleRole } from './model';
 
-const ROLES: readonly SampleRole[] = [
+export const ROLES: readonly SampleRole[] = [
   'beat',
   'bass',
   'chord',

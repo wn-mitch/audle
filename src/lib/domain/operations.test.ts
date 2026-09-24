@@ -5,7 +5,9 @@ import {
   cloneSelectedVoice,
   createDailyDraft,
   deleteLayer,
+  fillTracks,
   moveSelection,
+  placeLoop,
   recordHit,
   renameTrack,
   repeatSelectionToEnd,
@@ -159,5 +161,43 @@ describe('composition operations', () => {
     expect(shortened.changed).toBe(2);
     expect(shortened.value.tracks[2]!.clips[0]).toMatchObject({ lengthTicks: TICKS_PER_BAR });
     expect(shortened.value.tracks[6]!.clips).toHaveLength(0);
+  });
+
+  it('places loops at the start of the clicked bar and toggles them off', () => {
+    const composition = createDailyDraft(challengeForDate('2026-08-12'), 4);
+    expect(composition.bars).toBe(4);
+    const placed = expectSuccess(placeLoop(composition, 'track-0', TICKS_PER_BAR * 2 + 250));
+    expect(placed.tracks[0]!.clips).toMatchObject([
+      { kind: 'loop', startTick: TICKS_PER_BAR * 2, lengthTicks: TICKS_PER_BAR * 2 },
+    ]);
+    const lastBar = expectSuccess(placeLoop(composition, 'track-0', TICKS_PER_BAR * 4 + 50));
+    expect(lastBar.tracks[0]!.clips).toMatchObject([
+      { startTick: TICKS_PER_BAR * 3, lengthTicks: TICKS_PER_BAR },
+    ]);
+    expect(
+      expectSuccess(placeLoop(placed, 'track-0', TICKS_PER_BAR * 2)).tracks[0]!.clips,
+    ).toHaveLength(0);
+    expect(placeLoop(composition, 'track-4', 0)).toMatchObject({ ok: false });
+  });
+
+  it('fills tracks in one validated edit with fresh clip ids', () => {
+    const composition = starter();
+    composition.tracks[4]!.clips.push({ id: 'clip-1', kind: 'hit', startTick: 0, ratchet: 1 });
+    const filled = expectSuccess(
+      fillTracks(composition, {
+        'track-4': [{ kind: 'hit', startTick: 96, ratchet: 1 }],
+        'track-6': [{ kind: 'hit', startTick: 0, ratchet: 2 }],
+        missing: [{ kind: 'hit', startTick: 0, ratchet: 1 }],
+      }),
+    );
+    const ids = filled.tracks.flatMap((track) => track.clips.map((clip) => clip.id));
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(filled.tracks[4]!.clips).toHaveLength(2);
+    expect(
+      fillTracks(composition, { 'track-0': [{ kind: 'hit', startTick: 0, ratchet: 1 }] }),
+    ).toMatchObject({
+      ok: false,
+    });
+    expect(fillTracks(composition, {})).toEqual({ ok: true, value: composition, changed: 0 });
   });
 });

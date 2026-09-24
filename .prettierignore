@@ -5,3 +5,4 @@ node_modules/
 .wrangler/
 playwright-report/
 test-results/
+.claude/

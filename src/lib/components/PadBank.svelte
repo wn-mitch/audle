@@ -41,7 +41,7 @@
 </section>
 
 <style>
-  .pad-bank { display: grid; gap: 10px; min-inline-size: 0; padding: 14px; background: var(--audle-deck-raised); box-shadow: var(--audle-deck-edge); }
+  .pad-bank { display: grid; align-content: start; gap: 10px; min-inline-size: 0; padding: 14px; background: var(--audle-deck-raised); box-shadow: var(--audle-deck-edge); }
   header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
   header p { margin: 0; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
   header span { color: var(--audle-text-muted); font-size: 0.75rem; }

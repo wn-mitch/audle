@@ -16,12 +16,12 @@
     </button>
     <label>
       <span>Bars</span>
-      <select aria-label="Loop length in bars" value={editor.composition.bars} onchange={(event) => editor.setBars(Number(event.currentTarget.value) as 1 | 2 | 3 | 4)}>
-        <option value="1">1</option>
-        <option value="2">2</option>
-        <option value="3">3</option>
-        <option value="4">4</option>
-      </select>
+      <span class="select-wrap"><select aria-label="Loop length in bars" value={editor.composition.bars} onchange={(event) => editor.setBars(Number(event.currentTarget.value) as 1 | 2 | 3 | 4)}>
+        <option value={1}>1</option>
+        <option value={2}>2</option>
+        <option value={3}>3</option>
+        <option value={4}>4</option>
+      </select></span>
     </label>
   </div>
   <div class="transport-secondary">
@@ -43,6 +43,10 @@
   button.record.recording span { color: var(--audle-record-light); }
   button.share { border-color: var(--audle-selection-light); }
   label { display: grid; gap: 2px; color: var(--audle-text-muted); font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-  select { min-block-size: 30px; padding-inline: 8px; font-size: 0.85rem; }
+  /* WebKit resolves inherited custom properties to empty on <select>, so the tokens carry literal fallbacks. */
+  select { appearance: none; min-block-size: 30px; padding-inline: 8px 22px; background: var(--audle-control, oklch(0.232 0.018 255)); color: var(--audle-text, oklch(0.935 0.012 255)); color-scheme: dark; font-size: 0.85rem; }
+  .select-wrap { position: relative; display: grid; }
+  .select-wrap::after { content: '▾'; position: absolute; inset-block: 0; inset-inline-end: 7px; display: grid; place-items: center; color: var(--audle-text-muted); pointer-events: none; }
+  option { background: var(--audle-deck); color: var(--audle-text); }
   @media (max-width: 620px) { .transport { position: sticky; inset-block-end: env(safe-area-inset-bottom); z-index: 10; flex-wrap: wrap; } .transport-main, .transport-secondary { inline-size: 100%; justify-content: space-between; } .transport-secondary button { min-block-size: 44px; padding-inline: 8px; } }
 </style>

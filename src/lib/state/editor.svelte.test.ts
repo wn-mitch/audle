@@ -4,7 +4,8 @@ import { starterForChallenge } from '../data/examples';
 import { challengeForDate } from '../domain/challenge';
 import { encodeShare } from '../domain/share-codec';
 import type { CompositionV1, TrackControls } from '../domain/model';
-import { EditorState } from './editor.svelte';
+import type { JevAnswers } from '../jev/jam';
+import { EditorState, type JevClient } from './editor.svelte';
 
 class FakeAudioEngine implements AudioEngine {
   composition: CompositionV1 | undefined;
@@ -122,6 +123,78 @@ describe('EditorState', () => {
     state.selectedTrackId = 'track-2';
     state.addLayer();
     expect(state.composition.tracks).toHaveLength(9);
+    state.destroy();
+  });
+
+  it('places hits on the clicked sixteenth and loops at the clicked bar', async () => {
+    const engine = new FakeAudioEngine();
+    const challenge = challengeForDate('2026-08-12');
+    const state = new EditorState(engine, challenge);
+    await state.loadAudio();
+    state.placeAt('track-4', 401);
+    state.placeAt('track-0', 500);
+    expect(state.composition.tracks[4]!.clips).toMatchObject([{ kind: 'hit', startTick: 408 }]);
+    expect(state.composition.tracks[0]!.clips).toMatchObject([{ kind: 'loop', startTick: 384 }]);
+    expect(state.playheadTick).toBe(504);
+    expect(engine.auditioned).toEqual([challenge.sampleIds[4]]);
+    state.placeAt('track-0', 700);
+    expect(state.composition.tracks[0]!.clips).toHaveLength(0);
+    state.destroy();
+  });
+
+  it('applies a Jev jam to empty tracks only, as one undo step', async () => {
+    const engine = new FakeAudioEngine();
+    const challenge = challengeForDate('2026-08-12');
+    const requests: Parameters<JevClient>[0][] = [];
+    const answers: JevAnswers = {
+      'track-0': { full: 1 },
+      'track-2': { full: 1 },
+      'track-4': { four: 0.97, drive: 0.03 },
+      'track-6': { rest: 1 },
+    };
+    const jev: JevClient = async (request) => {
+      requests.push(request);
+      return answers;
+    };
+    const state = new EditorState(
+      engine,
+      challenge,
+      starterForChallenge(challenge),
+      jev,
+      () => 0.5,
+    );
+    await state.loadAudio();
+    const starterBeat = state.composition.tracks[0]!.clips;
+    await state.jamWithJev('eerie');
+
+    expect(requests[0]!.vibe).toBe('eerie');
+    expect(requests[0]!.tracks.filter((track) => track.fill).map((track) => track.index)).toEqual([
+      1, 3, 4, 5, 7,
+    ]);
+    expect(state.composition.tracks[0]!.clips).toEqual(starterBeat);
+    expect(state.composition.tracks[4]!.clips).toHaveLength(8);
+    expect(state.jamPicks).toEqual({ 'track-4': 'four' });
+    expect(state.notice).toContain('Jev filled 1 track');
+
+    state.undo();
+    expect(state.composition.tracks[4]!.clips).toHaveLength(0);
+    expect(state.jamPicks).toEqual({});
+    state.destroy();
+  });
+
+  it('leaves the loop unchanged when Jev is unreachable', async () => {
+    const engine = new FakeAudioEngine();
+    const challenge = challengeForDate('2026-08-12');
+    const state = new EditorState(engine, challenge, undefined, async () => {
+      throw new Error('offline');
+    });
+    await state.loadAudio();
+    const before = state.composition;
+    await state.jamWithJev('');
+    expect(state.composition).toBe(before);
+    expect(state.canUndo).toBe(false);
+    expect(state.jamming).toBe(false);
+    expect(state.notice).toBe('Jev is offline. Your loop is unchanged.');
     state.destroy();
   });
 });

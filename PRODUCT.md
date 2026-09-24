@@ -10,7 +10,7 @@ People age 9 and up, from curious first-time beat makers to experienced electron
 
 ## Product Purpose
 
-Audle makes, shares, hears, and lets people choose a favorite constrained daily loop. Everyone receives the same eight-source prompt. Within five minutes, a new maker should be able to create a layered, recognizably authored loop they can replay or share. The prompt constrains sources, not voices: a composition supports independently tuned cloned voices from the same source.
+Audle makes, shares, hears, and lets people choose a favorite constrained daily loop. Everyone receives the same eight-source prompt. Within five minutes, a new maker should be able to create a layered, recognizably authored loop they can replay or share. The prompt constrains sources, not voices: a composition supports independently tuned cloned voices from the same source. Clicking a lane places a sound directly, and Jev (TypeSafe's choice model) can fill every empty track by picking from a vetted pattern catalog, steered by an optional vibe.
 
 ## Brand Personality
 

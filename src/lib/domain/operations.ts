@@ -94,10 +94,13 @@ const copiedClip = (nextId: (prefix: string) => string, clip: Clip, startTick: n
       }
     : { id: nextId('clip'), kind: 'hit', startTick, ratchet: clip.ratchet };
 
-export const createDailyDraft = (challenge: CompositionV1['challenge']): CompositionV1 => ({
+export const createDailyDraft = (
+  challenge: CompositionV1['challenge'],
+  bars: CompositionV1['bars'] = 2,
+): CompositionV1 => ({
   version: 1,
   challenge,
-  bars: 2,
+  bars,
   tracks: challenge.sampleIds.map((sampleId, index) => ({
     id: `track-${index}`,
     sampleId,
@@ -444,6 +447,20 @@ export const toggleLoopClip = (
   });
 };
 
+/** Places a loop clip at the start of the bar containing `rawTick`; an existing loop there is removed. */
+export const placeLoop = (
+  composition: CompositionV1,
+  trackId: string,
+  rawTick: number,
+): OperationResult => {
+  const totalTicks = composition.bars * TICKS_PER_BAR;
+  const barStart = Math.max(
+    0,
+    Math.min(totalTicks - TICKS_PER_BAR, Math.floor(rawTick / TICKS_PER_BAR) * TICKS_PER_BAR),
+  );
+  return toggleLoopClip(composition, trackId, barStart);
+};
+
 export const resizeLoop = (
   composition: CompositionV1,
   trackId: string,
@@ -520,4 +537,30 @@ export const recordHit = (
     };
   });
   return finalComposition({ ...candidate, tracks: updatedTracks });
+};
+
+export type ClipPlacement = Omit<LoopClip, 'id'> | Omit<HitClip, 'id'>;
+
+/** Appends placements to tracks as one edit, allocating fresh clip IDs. Unknown track IDs are ignored. */
+export const fillTracks = (
+  composition: CompositionV1,
+  placements: Readonly<Record<string, readonly ClipPlacement[]>>,
+): OperationResult => {
+  const candidate = structuredClone(composition);
+  const nextId = createIdAllocator(candidate);
+  let changed = 0;
+  const tracks = candidate.tracks.map((track) => {
+    const additions = placements[track.id];
+    if (!additions?.length) return track;
+    changed += additions.length;
+    return {
+      ...track,
+      clips: [
+        ...track.clips,
+        ...additions.map((clip) => ({ ...clip, id: nextId('clip') }) as Clip),
+      ],
+    };
+  });
+  if (changed === 0) return { ok: true, value: composition, changed: 0 };
+  return finalComposition({ ...candidate, tracks }, changed);
 };

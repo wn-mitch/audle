@@ -1,6 +1,7 @@
 <script lang="ts">
   import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH, type LoopClip } from '../domain/model';
   import type { EditorState } from '../state/editor.svelte';
+  import { sampleById } from '../data/samples';
   import TrackHeader from './TrackHeader.svelte';
 
   let { editor }: { editor: EditorState } = $props();
@@ -13,10 +14,13 @@
   const totalTicks = $derived(editor.composition.bars * TICKS_PER_BAR);
   const steps = $derived(Array.from({ length: totalTicks / TICKS_PER_SIXTEENTH }, (_, index) => index));
 
-  const setPlayheadFromPointer = (event: PointerEvent) => {
-    if (!grid) return;
-    const bounds = grid.getBoundingClientRect();
-    editor.setPlayhead(((event.clientX - bounds.left) / bounds.width) * totalTicks);
+  // Every lane's content area shares the same horizontal extent, so ticks map from the first one.
+  const tickFromPointer = (event: PointerEvent): number | undefined => {
+    const lane = grid?.querySelector<HTMLElement>('.lane-content');
+    if (!lane) return undefined;
+    const bounds = lane.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+    return ratio * totalTicks;
   };
 
   const startLongPress = (event: PointerEvent) => {
@@ -38,10 +42,21 @@
     if (pressStart && Math.hypot(event.clientX - pressStart.x, event.clientY - pressStart.y) > 8) cancelLongPress();
   };
 
+  const TAP_SLOP_PX = 6;
+  let press: { x: number; y: number; trackId?: string; ruler: boolean } | undefined;
+  let hover = $state<{ trackId: string; tick: number } | undefined>(undefined);
+
   const startMarquee = (event: PointerEvent) => {
     const target = event.target as HTMLElement;
-    if (event.pointerType === 'touch' || target.closest('.clip, .track-header, .ruler')) return;
-    setPlayheadFromPointer(event);
+    if (target.closest('.clip, .resize, .track-header, .ruler .sticky')) return;
+    const ruler = Boolean(target.closest('.ruler'));
+    press = {
+      x: event.clientX,
+      y: event.clientY,
+      trackId: target.closest<HTMLElement>('.lane-content')?.dataset.trackId,
+      ruler,
+    };
+    if (event.pointerType === 'touch' || ruler) return;
     const bounds = grid!.getBoundingClientRect();
     marquee = {
       startX: event.clientX - bounds.left,
@@ -54,14 +69,51 @@
     container.setPointerCapture(event.pointerId);
   };
 
+  /** A press that barely moved is a tap: it places a sound on a lane, or moves the playhead on the ruler. */
+  const finishPress = (event: PointerEvent): boolean => {
+    const current = press;
+    press = undefined;
+    if (!current || Math.hypot(event.clientX - current.x, event.clientY - current.y) > TAP_SLOP_PX) return false;
+    const tick = tickFromPointer(event);
+    if (tick === undefined) return false;
+    if (current.trackId) editor.placeAt(current.trackId, tick);
+    else editor.setPlayhead(tick);
+    return true;
+  };
+
+  const trackHover = (event: PointerEvent) => {
+    if (event.pointerType !== 'mouse' || dragging) {
+      hover = undefined;
+      return;
+    }
+    const lane = (event.target as HTMLElement).closest<HTMLElement>('.lane-content');
+    const tick = tickFromPointer(event);
+    const onClip = (event.target as HTMLElement).closest('.clip, .resize');
+    hover = lane?.dataset.trackId && tick !== undefined && !onClip ? { trackId: lane.dataset.trackId, tick } : undefined;
+  };
+
+  const ghostFor = (trackId: string, loop: boolean) => {
+    if (!hover || hover.trackId !== trackId) return undefined;
+    const size = loop ? TICKS_PER_BAR : TICKS_PER_SIXTEENTH;
+    const start = Math.min(totalTicks - size, Math.floor(hover.tick / size) * size);
+    return `--start: ${(start / totalTicks) * 100}%; --width: ${(size / totalTicks) * 100}%`;
+  };
+
   const updateMarquee = (event: PointerEvent) => {
     if (!marquee || !grid) return;
     const bounds = grid.getBoundingClientRect();
     marquee = { ...marquee, endX: event.clientX - bounds.left, endY: event.clientY - bounds.top };
   };
 
-  const finishMarquee = () => {
+  const finishMarquee = (event: PointerEvent) => {
+    const tapped = event.type === 'pointerup' && finishPress(event);
+    press = undefined;
     if (!marquee || !grid) return;
+    if (tapped) {
+      marquee = undefined;
+      dragging = false;
+      return;
+    }
     const bounds = grid.getBoundingClientRect();
     const left = Math.min(marquee.startX, marquee.endX) + bounds.left;
     const right = Math.max(marquee.startX, marquee.endX) + bounds.left;
@@ -110,23 +162,24 @@
   <header class="timeline-head">
     <div>
       <p>Arrange</p>
-      <strong>{editor.composition.bars} bar{editor.composition.bars === 1 ? '' : 's'} · 16th grid</strong>
+      <strong>{editor.composition.bars} bar{editor.composition.bars === 1 ? '' : 's'} · click a lane to add, double-click to remove</strong>
     </div>
     <button aria-pressed={selectMode} class:active={selectMode} type="button" onclick={() => selectMode = !selectMode}>Select</button>
   </header>
   <div class="timeline-scroll">
-    <div aria-label="Timeline selection surface" bind:this={grid} class="grid" role="region" style={`--bars: ${editor.composition.bars}`} onpointerdown={startMarquee} onpointermove={updateMarquee} onpointerup={finishMarquee} onpointercancel={finishMarquee}>
+    <div aria-label="Timeline selection surface" bind:this={grid} class="grid" role="region" style={`--bars: ${editor.composition.bars}`} onpointerdown={startMarquee} onpointermove={(event) => { updateMarquee(event); trackHover(event); }} onpointerleave={() => hover = undefined} onpointerup={finishMarquee} onpointercancel={finishMarquee}>
       <div class="ruler" style={`--bars: ${editor.composition.bars}`}>
         <span class="sticky">Track</span>
         {#each Array.from({ length: editor.composition.bars }, (_, index) => index + 1) as bar (bar)}
           <span>Bar {bar}</span>
         {/each}
-        <i class="playhead-ruler" style={`--playhead: ${(editor.playheadTick / totalTicks) * 100}%`}></i>
+        <i class="playhead-ruler" style={`--playhead-ratio: ${editor.playheadTick / totalTicks}`}></i>
       </div>
       {#each editor.composition.tracks as track, trackIndex (track.id)}
+        {@const loopLane = sampleById(track.sampleId)?.kind === 'loop'}
         <div class="lane">
           <TrackHeader {editor} {track} index={trackIndex} />
-          <div class="lane-content">
+          <div aria-label={`${track.label} lane: click to ${loopLane ? 'toggle a loop in that bar' : 'add a hit'}`} class="lane-content" data-track-id={track.id} role="group">
             {#each steps as step (step)}
               <i aria-hidden="true" class:bar={step % 16 === 0} class:quarter={step % 4 === 0} class="grid-line" style={`--step: ${(step / steps.length) * 100}%`}></i>
             {/each}
@@ -146,10 +199,15 @@
                 onpointerup={cancelLongPress}
                 onpointercancel={cancelLongPress}
                 onclick={(event) => editor.selectClip(clip.id, event.shiftKey || selectMode)}
+                ondblclick={() => { editor.selectClip(clip.id); editor.deleteSelection(); }}
                 onkeydown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
                     editor.selectClip(clip.id, event.shiftKey || selectMode);
+                  } else if (event.key === 'Delete' || event.key === 'Backspace') {
+                    event.preventDefault();
+                    editor.selectClip(clip.id);
+                    editor.deleteSelection();
                   }
                 }}
               >
@@ -181,6 +239,9 @@
                 ></span>
               {/if}
             {/each}
+            {#if ghostFor(track.id, loopLane)}
+              <i aria-hidden="true" class:loop={loopLane} class="ghost" style={ghostFor(track.id, loopLane)}></i>
+            {/if}
             <i aria-hidden="true" class="playhead" style={`--playhead: ${(editor.playheadTick / totalTicks) * 100}%`}></i>
           </div>
         </div>
@@ -200,12 +261,14 @@
   .timeline-head button { min-inline-size: 72px; min-block-size: 44px; border: 1px solid var(--audle-outline); background: var(--audle-control); box-shadow: var(--audle-control-rest); cursor: pointer; font-weight: 700; }
   .timeline-head button.active { background: var(--audle-selection-surface); box-shadow: inset 0 0 0 1px var(--audle-selection-light), var(--audle-control-contact); }
   .timeline-scroll { min-block-size: 0; overflow: auto; overscroll-behavior: contain; }
-  .grid { position: relative; min-inline-size: max(100%, calc(260px * var(--bars, 1))); }
-  .ruler { position: sticky; inset-block-start: 0; z-index: 5; display: grid; grid-template-columns: 154px repeat(var(--bars), minmax(260px, 1fr)); min-block-size: 36px; background: var(--audle-deck); border-block-end: 1px solid var(--audle-grid-major); }
+  .grid { --header-w: 154px; --bar-min: 260px; position: relative; min-inline-size: max(100%, calc(var(--header-w) + var(--bar-min) * var(--bars, 1))); }
+  /* Desktop fits a four-bar loop without scrolling: 120px is still 7.5px per sixteenth. */
+  @media (min-width: 960px) { .grid { --bar-min: 120px; } }
+  .ruler { position: sticky; inset-block-start: 0; z-index: 5; display: grid; grid-template-columns: var(--header-w) repeat(var(--bars), minmax(var(--bar-min), 1fr)); cursor: pointer; min-block-size: 36px; background: var(--audle-deck); border-block-end: 1px solid var(--audle-grid-major); }
   .ruler span { display: grid; place-items: center start; padding-inline: 10px; border-inline-end: 1px solid var(--audle-grid-major); color: var(--audle-text-muted); font-family: ui-monospace, monospace; font-size: 0.68rem; }
   .ruler .sticky { position: sticky; inset-inline-start: 0; z-index: 2; background: var(--audle-deck); }
-  .lane { display: grid; grid-template-columns: 154px minmax(calc(260px * var(--bars, 1)), 1fr); min-block-size: 56px; }
-  .lane-content { position: relative; min-block-size: 56px; overflow: hidden; background: var(--audle-well); box-shadow: inset 0 2px 5px oklch(0.025 0.007 255 / 0.88), inset 0 1px 0 oklch(0.57 0.02 255 / 0.14); }
+  .lane { display: grid; grid-template-columns: var(--header-w) minmax(calc(var(--bar-min) * var(--bars, 1)), 1fr); min-block-size: 56px; }
+  .lane-content { position: relative; cursor: crosshair; min-block-size: 56px; overflow: hidden; background: var(--audle-well); box-shadow: inset 0 2px 5px oklch(0.025 0.007 255 / 0.88), inset 0 1px 0 oklch(0.57 0.02 255 / 0.14); }
   .grid-line { position: absolute; inset-block: 0; inset-inline-start: var(--step); inline-size: 1px; background: var(--audle-grid-minor); pointer-events: none; }
   .grid-line.quarter { background: var(--audle-outline-subtle); }
   .grid-line.bar { inline-size: 2px; background: var(--audle-grid-major); }
@@ -216,7 +279,9 @@
   .hit .strikes { color: var(--audle-one-shot-light); letter-spacing: 1px; }
   .clip-copy { overflow: hidden; font-family: ui-monospace, monospace; font-size: 0.68rem; white-space: nowrap; }
   .playhead, .playhead-ruler { position: absolute; z-index: 4; inset-block: 0; inset-inline-start: var(--playhead); inline-size: 2px; background: var(--audle-playback-light); pointer-events: none; }
-  .playhead-ruler { z-index: 6; }
+  .playhead-ruler { z-index: 6; inset-inline-start: calc(var(--header-w) + (100% - var(--header-w)) * var(--playhead-ratio)); }
+  .ghost { position: absolute; z-index: 1; inset-block: 8px; inset-inline-start: var(--start); inline-size: var(--width); border: 1px dashed var(--audle-one-shot-light); opacity: 0.45; pointer-events: none; }
+  .ghost.loop { border-color: var(--audle-loop-light); }
   .marquee { position: absolute; z-index: 8; border: 2px dashed var(--audle-selection-light); background: oklch(0.25 0.06 28 / 0.18); pointer-events: none; }
   .timeline.dragging .grid { touch-action: none; }
   @media (max-width: 959px) { .timeline { min-block-size: 300px; } .timeline-scroll { max-block-size: 54vh; } }

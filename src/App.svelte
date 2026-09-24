@@ -2,6 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { ToneAudioEngine } from './lib/audio/engine';
   import TutorialCoach from './lib/components/TutorialCoach.svelte';
+  import JevJam from './lib/components/JevJam.svelte';
   import ListenGallery from './lib/components/ListenGallery.svelte';
   import PadBank from './lib/components/PadBank.svelte';
   import SelectionActions from './lib/components/SelectionActions.svelte';
@@ -227,8 +228,9 @@
       <PadBank {challenge} {editor} />
       <div class="arrangement">
         {#if !makerHasClips && !editor.loading}
-          <div class="empty-arrangement"><strong>Tap any sound.</strong><span>Build from nothing, or start with three open voices.</span><button type="button" onclick={() => editor.importComposition(starterForChallenge(challenge))}>Remix today’s starter</button></div>
+          <div class="empty-arrangement"><strong>Tap any sound.</strong><span>Click a lane to place a sound, let Jev jam a loop, or start with three open voices.</span><div class="empty-actions"><button disabled={editor.jamming} type="button" onclick={() => void editor.jamWithJev('')}>✦ Jam with Jev</button><button type="button" onclick={() => editor.importComposition(starterForChallenge(challenge))}>Remix today’s starter</button></div></div>
         {/if}
+        <JevJam {editor} />
         <TimelineEditor {editor} />
         <SelectionActions {editor} />
         <TransportBar {editor} onShare={() => void shareComposition(editor.composition)} />
@@ -239,7 +241,7 @@
     <TutorialCoach editor={tutorial} onShare={() => void shareComposition(tutorial!.composition)} onFinish={finishTutorial} />
     <section class="maker-workspace tutorial-workspace">
       <PadBank {challenge} editor={tutorial} />
-      <div class="arrangement"><TimelineEditor editor={tutorial} /><SelectionActions editor={tutorial} /><TransportBar editor={tutorial} onShare={() => void shareComposition(tutorial!.composition)} /></div>
+      <div class="arrangement"><JevJam editor={tutorial} /><TimelineEditor editor={tutorial} /><SelectionActions editor={tutorial} /><TransportBar editor={tutorial} onShare={() => void shareComposition(tutorial!.composition)} /></div>
       <TuningDeck editor={tutorial} />
     </section>
   {:else if view === 'listen'}
@@ -264,7 +266,7 @@
   .daily-readout { display: grid; justify-items: center; font-family: ui-monospace, monospace; text-align: center; } .daily-readout strong { font-size: 0.8rem; } .daily-readout span, .daily-readout small { color: var(--audle-text-muted); font-size: 0.65rem; } .daily-readout small { color: var(--audle-playback-light); }
   nav { display: flex; justify-self: end; gap: 4px; } nav button { min-block-size: 44px; padding-inline: 12px; border: 0; border-block-end: 2px solid transparent; background: transparent; color: var(--audle-text-muted); cursor: pointer; font-weight: 700; } nav button.current { color: var(--audle-text); border-color: var(--audle-playback-light); }
   .maker-workspace { display: grid; grid-template-columns: 300px minmax(0, 1fr) 260px; gap: 10px; padding: 10px; } .arrangement { position: relative; display: grid; align-content: start; gap: 10px; min-inline-size: 0; }
-  .empty-arrangement { position: absolute; z-index: 8; inset: 70px 24px auto; display: grid; justify-items: start; gap: 7px; max-inline-size: 380px; padding: 16px; background: var(--audle-deck); border: 1px solid var(--audle-outline); box-shadow: var(--audle-deck-edge); } .empty-arrangement span { color: var(--audle-text-muted); font-size: 0.82rem; } .empty-arrangement button, .tutorial-offer button, .shared-error button, .share-fallback button { min-block-size: 44px; padding-inline: 12px; border: 1px solid var(--audle-loop-light); background: var(--audle-loop-surface); color: var(--audle-text); cursor: pointer; font-weight: 700; }
+  .empty-arrangement { display: grid; justify-items: start; gap: 7px; padding: 16px; background: var(--audle-deck); border: 1px solid var(--audle-outline); box-shadow: var(--audle-deck-edge); } .empty-arrangement span { color: var(--audle-text-muted); font-size: 0.82rem; } .empty-actions { display: flex; flex-wrap: wrap; gap: 8px; } .empty-arrangement button, .tutorial-offer button, .shared-error button, .share-fallback button { min-block-size: 44px; padding-inline: 12px; border: 1px solid var(--audle-loop-light); background: var(--audle-loop-surface); color: var(--audle-text); cursor: pointer; font-weight: 700; }
   .tutorial-offer { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin: 10px; padding: 10px 14px; background: var(--audle-deck-raised); border: 1px solid var(--audle-outline); } .tutorial-offer span { color: var(--audle-playback-light); font-size: 0.75rem; font-weight: 800; text-transform: uppercase; } .tutorial-offer .quiet { border-color: var(--audle-outline); background: var(--audle-control); }
   .shared-error, .share-fallback { inline-size: min(100% - 32px, 640px); margin: 12vh auto; padding: 28px; background: var(--audle-deck-raised); border: 1px solid var(--audle-record-light); box-shadow: inset 0 0 0 1px var(--audle-record-light); } .shared-error h1, .share-fallback h2 { margin-block-start: 0; } .shared-error p { color: var(--audle-text-muted); } .share-fallback { display: grid; gap: 10px; position: fixed; z-index: 20; inset: 0; margin: auto; block-size: max-content; } .share-fallback input { min-block-size: 44px; padding-inline: 8px; border: 1px solid var(--audle-outline); background: var(--audle-well); color: var(--audle-text); }
   @media (max-width: 959px) { .deck-top { grid-template-columns: 1fr auto; } .daily-readout { display: none; } .maker-workspace { grid-template-columns: minmax(0, 1fr); } .maker-workspace > :first-child { order: 0; } .arrangement { order: 1; } .maker-workspace > :last-child { order: 2; } .tutorial-workspace { padding-block-start: 0; } }
