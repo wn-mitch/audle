@@ -1,6 +1,13 @@
 import { Unzlib, strFromU8, strToU8, zlibSync } from 'fflate';
 import { PITCH_CLASSES, type Clip, type CompositionV1, type Track } from './model';
-import { ShareWireSchema, type ShareWire, validateComposition } from './schema';
+import {
+  PerformanceShareWireSchema,
+  ShareWireSchema,
+  type PerformanceShareWire,
+  type ShareWire,
+  validateComposition,
+} from './schema';
+import { validatePerformance, type PerformanceV1, type SharedAudle } from './performance';
 
 const MAX_FRAGMENT_LENGTH = 8192;
 const MAX_INFLATED_LENGTH = 65_536;
@@ -184,30 +191,76 @@ const inflatePayload = (compressed: Uint8Array): string => {
   return strFromU8(inflated);
 };
 
-export const encodeShare = (composition: CompositionV1): string => {
-  const wire = compositionToWire(composition);
+const encodeWire = (wire: ShareWire | PerformanceShareWire): string => {
   const encoded = asBase64Url(zlibSync(strToU8(JSON.stringify(wire))));
   if (encoded.length > MAX_FRAGMENT_LENGTH) throw new ShareCodecError('too-long');
   return encoded;
 };
 
-export const decodeShare = (payload: string): ShareResult<CompositionV1> => {
+export const encodeShare = (composition: CompositionV1): string =>
+  encodeWire(compositionToWire(composition));
+
+export const encodePerformanceShare = (performance: PerformanceV1): string => {
+  const valid = validatePerformance(performance);
+  if (!valid) throw new ShareCodecError('invalid-composition');
+  const wire: PerformanceShareWire = [
+    2,
+    compositionToWire(valid.composition),
+    valid.durationTicks,
+    valid.events.map((event) => [
+      event.tick,
+      valid.composition.tracks.findIndex((track) => track.id === event.trackId),
+      event.kind === 'mute' ? 0 : 1,
+      event.value ? 1 : 0,
+    ]),
+  ];
+  return encodeWire(wire);
+};
+
+export const decodeShared = (payload: string): ShareResult<SharedAudle> => {
   if (payload.length === 0 || payload.length > MAX_FRAGMENT_LENGTH)
     return { ok: false, error: 'too-long' };
 
   try {
     const compressed = fromBase64Url(payload);
     const parsedJson: unknown = JSON.parse(inflatePayload(compressed));
-    const wireResult = ShareWireSchema.safeParse(parsedJson);
-    if (!wireResult.success) return { ok: false, error: 'invalid-payload' };
-    const composition = wireToComposition(wireResult.data);
-    return composition
-      ? { ok: true, value: composition }
+    const version = Array.isArray(parsedJson) ? parsedJson[0] : undefined;
+    if (version === 1) {
+      const wire = ShareWireSchema.safeParse(parsedJson);
+      if (!wire.success) return { ok: false, error: 'invalid-payload' };
+      const composition = wireToComposition(wire.data);
+      return composition
+        ? { ok: true, value: { composition } }
+        : { ok: false, error: 'invalid-composition' };
+    }
+    const wire = PerformanceShareWireSchema.safeParse(parsedJson);
+    if (!wire.success) return { ok: false, error: 'invalid-payload' };
+    const [, compositionWire, durationTicks, events] = wire.data;
+    const composition = wireToComposition(compositionWire);
+    if (!composition) return { ok: false, error: 'invalid-composition' };
+    const performance = validatePerformance({
+      version: 1,
+      composition,
+      durationTicks,
+      events: events.map(([tick, trackIndex, kind, value]) => ({
+        tick,
+        trackId: composition.tracks[trackIndex]?.id,
+        kind: kind === 0 ? 'mute' : 'solo',
+        value: value === 1,
+      })),
+    });
+    return performance
+      ? { ok: true, value: { composition, performance } }
       : { ok: false, error: 'invalid-composition' };
   } catch (error) {
     if (error instanceof ShareCodecError) return { ok: false, error: error.code };
     return { ok: false, error: 'invalid-payload' };
   }
+};
+
+export const decodeShare = (payload: string): ShareResult<CompositionV1> => {
+  const result = decodeShared(payload);
+  return result.ok ? { ok: true, value: result.value.composition } : result;
 };
 
 export const fingerprintForComposition = async (composition: CompositionV1): Promise<string> => {

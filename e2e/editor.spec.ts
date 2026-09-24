@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test('remixes the starter and layers the selected voice', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
 
   await page.getByRole('button', { name: 'Remix today’s starter' }).click();
   await expect(page.locator('input[aria-label^="Label for"]')).toHaveCount(8);
@@ -16,6 +17,7 @@ test('clicking a lane places a hit under the pointer, aligned with both playhead
 }, testInfo) => {
   test.skip(testInfo.project.name === 'mobile-chromium', 'Covered by the tap test below.');
   await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
   await expect(page.getByText('4 bars', { exact: false })).toBeVisible();
   await expect(page.getByText('Decoding sounds')).toHaveCount(0);
   const lane = page.locator('.lane-content').nth(4);
@@ -40,6 +42,7 @@ test('clicking a lane places a hit under the pointer, aligned with both playhead
 test('tapping a loop lane on a phone fills that bar', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium', 'Phone layout only.');
   await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
   await expect(page.getByText('2 bars', { exact: false })).toBeVisible();
   await expect(page.getByText('Decoding sounds')).toHaveCount(0);
   const lane = page.locator('.lane-content').first();
@@ -66,6 +69,7 @@ test('Jam with Jev fills empty tracks and one undo takes it back', async ({ page
     });
   });
   await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
   await page.getByLabel('Vibe for Jev').fill('bouncy');
   await page.getByRole('button', { name: 'Jam with Jev' }).last().click();
 
@@ -82,6 +86,7 @@ test('Jam with Jev fills empty tracks and one undo takes it back', async ({ page
 test('Jam with Jev reports an outage without changing the loop', async ({ page }) => {
   await page.route('/api/jev', (route) => route.fulfill({ status: 502, json: { error: 'down' } }));
   await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
   await page.getByRole('button', { name: 'Jam with Jev' }).last().click();
   await expect(page.getByText('Jev is offline. Your loop is unchanged.')).toBeVisible();
   await expect(page.locator('.clip')).toHaveCount(0);

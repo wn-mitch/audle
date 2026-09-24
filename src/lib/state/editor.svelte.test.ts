@@ -4,6 +4,7 @@ import { starterForChallenge } from '../data/examples';
 import { challengeForDate } from '../domain/challenge';
 import { encodeShare } from '../domain/share-codec';
 import type { CompositionV1, TrackControls } from '../domain/model';
+import type { PerformanceV1 } from '../domain/performance';
 import type { JevAnswers } from '../jev/jam';
 import { EditorState, type JevClient } from './editor.svelte';
 
@@ -13,6 +14,8 @@ class FakeAudioEngine implements AudioEngine {
   controls: Array<{ trackId: string; controls: TrackControls }> = [];
   armed = false;
   playing = false;
+  tick = 0;
+  private scheduled: Array<{ tick: number; callback: (tick: number) => void }> = [];
   private readonly listeners = new Set<(snapshot: TransportSnapshot) => void>();
 
   async unlock(): Promise<void> {}
@@ -26,6 +29,34 @@ class FakeAudioEngine implements AudioEngine {
   }
   stop(): void {
     this.playing = false;
+    this.emit();
+  }
+  absoluteTick(): number {
+    return this.tick;
+  }
+  scheduleNextBar(callback: (tick: number) => void): Unsubscribe {
+    const event = { tick: Math.floor(this.tick / 384 + 1) * 384, callback };
+    this.scheduled.push(event);
+    return () => {
+      this.scheduled = this.scheduled.filter((scheduled) => scheduled !== event);
+    };
+  }
+  scheduleTrackControls(
+    _trackId: string,
+    _controls: TrackControls,
+    callback: (tick: number) => void,
+  ): Unsubscribe {
+    return this.scheduleNextBar(callback);
+  }
+  playPerformance(performance: PerformanceV1): void {
+    this.composition = performance.composition;
+    this.play();
+  }
+  advance(tick: number): void {
+    this.tick = tick;
+    const ready = this.scheduled.filter((event) => event.tick <= tick);
+    this.scheduled = this.scheduled.filter((event) => event.tick > tick);
+    for (const event of ready) event.callback(event.tick);
     this.emit();
   }
   armRecord(enabled: boolean): void {
@@ -53,6 +84,7 @@ const storage = new Map<string, string>();
 const fakeStorage = {
   getItem: (key: string) => storage.get(key) ?? null,
   setItem: (key: string, value: string) => storage.set(key, value),
+  removeItem: (key: string) => storage.delete(key),
 };
 
 Object.defineProperty(globalThis, 'window', {
@@ -195,6 +227,98 @@ describe('EditorState', () => {
     expect(state.canUndo).toBe(false);
     expect(state.jamming).toBe(false);
     expect(state.notice).toBe('Jev is offline. Your loop is unchanged.');
+    state.destroy();
+  });
+  it('keeps a live pattern while switching its sound off at the next bar', async () => {
+    const engine = new FakeAudioEngine();
+    const challenge = challengeForDate('2026-08-12');
+    const state = new EditorState(engine, challenge);
+    await state.loadAudio();
+    await state.toggleLive('track-0');
+    const clips = state.composition.tracks[0]!.clips;
+    expect(clips.length).toBe(state.composition.bars);
+    await state.toggleLive('track-0');
+    expect(state.liveStatus('track-0')).toBe('queued-off');
+    expect(state.composition.tracks[0]!.controls.muted).toBe(false);
+    await state.toggleLive('track-0');
+    expect(state.liveStatus('track-0')).toBe('on');
+    engine.advance(384);
+    expect(state.composition.tracks[0]!.controls.muted).toBe(false);
+    await state.toggleLive('track-0');
+    expect(state.liveStatus('track-0')).toBe('queued-off');
+    engine.advance(768);
+    expect(state.liveStatus('track-0')).toBe('off');
+    expect(state.composition.tracks[0]!.clips).toEqual(clips);
+    state.destroy();
+  });
+
+  it('gives loop sounds a distinct moving pattern that stays inside the source', async () => {
+    const engine = new FakeAudioEngine();
+    const state = new EditorState(engine, challengeForDate('2026-08-12'));
+    await state.loadAudio();
+    state.setBars(4);
+    await state.toggleLive('track-0');
+    expect(state.livePattern('track-0')).toBe('steady');
+
+    state.chooseLivePattern('track-0', 'moving');
+
+    expect(state.livePattern('track-0')).toBe('moving');
+    const clips = state.composition.tracks[0]!.clips;
+    expect(clips.every((clip) => clip.kind === 'loop')).toBe(true);
+    expect(clips).toHaveLength(8);
+    expect(
+      new Set(clips.map((clip) => (clip.kind === 'loop' ? clip.sourceOffsetTick : -1))),
+    ).toEqual(new Set([0, 192, 384, 576]));
+    state.destroy();
+
+    const reloaded = new EditorState(engine, challengeForDate('2026-08-12'));
+    await reloaded.loadAudio();
+    expect(reloaded.livePattern('track-0')).toBe('moving');
+    reloaded.destroy();
+  });
+
+  it('queues a newly added voice until the next musical bar', async () => {
+    const engine = new FakeAudioEngine();
+    const state = new EditorState(engine, challengeForDate('2026-08-12'));
+    await state.loadAudio();
+    await state.toggleLive('track-0');
+    engine.advance(96);
+    await state.toggleLive('track-1');
+    expect(state.liveStatus('track-1')).toBe('queued-on');
+    expect(state.composition.tracks[1]!.clips).toHaveLength(state.composition.bars);
+    engine.advance(384);
+    expect(state.liveStatus('track-1')).toBe('on');
+    state.destroy();
+  });
+
+  it('saves a bar-aligned performance without replacing the editable loop', async () => {
+    const engine = new FakeAudioEngine();
+    const challenge = challengeForDate('2026-08-12');
+    const state = new EditorState(engine, challenge);
+    await state.loadAudio();
+    await state.toggleLive('track-0');
+    await state.toggleLive('track-1');
+    await state.startCapture();
+    expect(state.captureStatus).toBe('count-in');
+    engine.advance(384);
+    expect(state.captureStatus).toBe('recording');
+    await state.toggleLive('track-0');
+    state.toggleLiveSolo('track-1');
+    engine.advance(768);
+    engine.advance(840);
+    state.stopCapture();
+    expect(state.performance?.events).toEqual([
+      { tick: 384, trackId: 'track-0', kind: 'mute', value: true },
+      { tick: 384, trackId: 'track-1', kind: 'solo', value: true },
+    ]);
+    expect(state.performance?.composition.tracks[0]!.controls.muted).toBe(false);
+    expect(state.composition.tracks[0]!.controls.muted).toBe(false);
+    expect(state.composition.tracks[1]!.controls.solo).toBe(false);
+    expect(storage.get(`audle:performance:v1:${challenge.date}`)).toBeDefined();
+    state.undo();
+    expect(state.composition.tracks[1]!.clips).toHaveLength(0);
+    state.undo();
+    expect(state.composition.tracks[0]!.clips).toHaveLength(0);
     state.destroy();
   });
 });

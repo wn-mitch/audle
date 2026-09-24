@@ -8,11 +8,15 @@
   let grid = $state<HTMLElement | undefined>(undefined);
   let selectMode = $state(false);
   let dragging = $state(false);
-  let marquee = $state<{ startX: number; startY: number; endX: number; endY: number } | undefined>(undefined);
+  let marquee = $state<{ startX: number; startY: number; endX: number; endY: number } | undefined>(
+    undefined,
+  );
   let pressStart = $state<{ x: number; y: number } | undefined>(undefined);
   let pressTimer: number | undefined;
   const totalTicks = $derived(editor.composition.bars * TICKS_PER_BAR);
-  const steps = $derived(Array.from({ length: totalTicks / TICKS_PER_SIXTEENTH }, (_, index) => index));
+  const steps = $derived(
+    Array.from({ length: totalTicks / TICKS_PER_SIXTEENTH }, (_, index) => index),
+  );
 
   // Every lane's content area shares the same horizontal extent, so ticks map from the first one.
   const tickFromPointer = (event: PointerEvent): number | undefined => {
@@ -39,7 +43,8 @@
   };
 
   const moveClipPointer = (event: PointerEvent) => {
-    if (pressStart && Math.hypot(event.clientX - pressStart.x, event.clientY - pressStart.y) > 8) cancelLongPress();
+    if (pressStart && Math.hypot(event.clientX - pressStart.x, event.clientY - pressStart.y) > 8)
+      cancelLongPress();
   };
 
   const TAP_SLOP_PX = 6;
@@ -73,7 +78,8 @@
   const finishPress = (event: PointerEvent): boolean => {
     const current = press;
     press = undefined;
-    if (!current || Math.hypot(event.clientX - current.x, event.clientY - current.y) > TAP_SLOP_PX) return false;
+    if (!current || Math.hypot(event.clientX - current.x, event.clientY - current.y) > TAP_SLOP_PX)
+      return false;
     const tick = tickFromPointer(event);
     if (tick === undefined) return false;
     if (current.trackId) editor.placeAt(current.trackId, tick);
@@ -89,7 +95,10 @@
     const lane = (event.target as HTMLElement).closest<HTMLElement>('.lane-content');
     const tick = tickFromPointer(event);
     const onClip = (event.target as HTMLElement).closest('.clip, .resize');
-    hover = lane?.dataset.trackId && tick !== undefined && !onClip ? { trackId: lane.dataset.trackId, tick } : undefined;
+    hover =
+      lane?.dataset.trackId && tick !== undefined && !onClip
+        ? { trackId: lane.dataset.trackId, tick }
+        : undefined;
   };
 
   const ghostFor = (trackId: string, loop: boolean) => {
@@ -162,26 +171,60 @@
   <header class="timeline-head">
     <div>
       <p>Arrange</p>
-      <strong>{editor.composition.bars} bar{editor.composition.bars === 1 ? '' : 's'} · click a lane to add, double-click to remove</strong>
+      <strong
+        >{editor.composition.bars} bar{editor.composition.bars === 1 ? '' : 's'} · click a lane to add,
+        double-click to remove</strong
+      >
     </div>
-    <button aria-pressed={selectMode} class:active={selectMode} type="button" onclick={() => selectMode = !selectMode}>Select</button>
+    <button
+      aria-pressed={selectMode}
+      class:active={selectMode}
+      type="button"
+      onclick={() => (selectMode = !selectMode)}>Select</button
+    >
   </header>
   <div class="timeline-scroll">
-    <div aria-label="Timeline selection surface" bind:this={grid} class="grid" role="region" style={`--bars: ${editor.composition.bars}`} onpointerdown={startMarquee} onpointermove={(event) => { updateMarquee(event); trackHover(event); }} onpointerleave={() => hover = undefined} onpointerup={finishMarquee} onpointercancel={finishMarquee}>
+    <div
+      aria-label="Timeline selection surface"
+      bind:this={grid}
+      class="grid"
+      role="region"
+      style={`--bars: ${editor.composition.bars}`}
+      onpointerdown={startMarquee}
+      onpointermove={(event) => {
+        updateMarquee(event);
+        trackHover(event);
+      }}
+      onpointerleave={() => (hover = undefined)}
+      onpointerup={finishMarquee}
+      onpointercancel={finishMarquee}
+    >
       <div class="ruler" style={`--bars: ${editor.composition.bars}`}>
         <span class="sticky">Track</span>
         {#each Array.from({ length: editor.composition.bars }, (_, index) => index + 1) as bar (bar)}
           <span>Bar {bar}</span>
         {/each}
-        <i class="playhead-ruler" style={`--playhead-ratio: ${editor.playheadTick / totalTicks}`}></i>
+        <i class="playhead-ruler" style={`--playhead-ratio: ${editor.playheadTick / totalTicks}`}
+        ></i>
       </div>
       {#each editor.composition.tracks as track, trackIndex (track.id)}
         {@const loopLane = sampleById(track.sampleId)?.kind === 'loop'}
         <div class="lane">
           <TrackHeader {editor} {track} index={trackIndex} />
-          <div aria-label={`${track.label} lane: click to ${loopLane ? 'toggle a loop in that bar' : 'add a hit'}`} class="lane-content" data-track-id={track.id} role="group">
+          <div
+            aria-label={`${track.label} lane: click to ${loopLane ? 'toggle a loop in that bar' : 'add a hit'}`}
+            class="lane-content"
+            data-track-id={track.id}
+            role="group"
+          >
             {#each steps as step (step)}
-              <i aria-hidden="true" class:bar={step % 16 === 0} class:quarter={step % 4 === 0} class="grid-line" style={`--step: ${(step / steps.length) * 100}%`}></i>
+              <i
+                aria-hidden="true"
+                class:bar={step % 16 === 0}
+                class:quarter={step % 4 === 0}
+                class="grid-line"
+                style={`--step: ${(step / steps.length) * 100}%`}
+              ></i>
             {/each}
             {#each track.clips as clip (clip.id)}
               <div
@@ -199,7 +242,10 @@
                 onpointerup={cancelLongPress}
                 onpointercancel={cancelLongPress}
                 onclick={(event) => editor.selectClip(clip.id, event.shiftKey || selectMode)}
-                ondblclick={() => { editor.selectClip(clip.id); editor.deleteSelection(); }}
+                ondblclick={() => {
+                  editor.selectClip(clip.id);
+                  editor.deleteSelection();
+                }}
                 onkeydown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
@@ -215,7 +261,9 @@
                   <span aria-hidden="true" class="waveform">∿∿∿</span>
                   <span class="clip-copy">Loop</span>
                 {:else}
-                  <span aria-hidden="true" class="strikes">{#each Array.from({ length: clip.ratchet }, (_, index) => index) as strike (strike)}|{/each}</span>
+                  <span aria-hidden="true" class="strikes"
+                    >{#each Array.from({ length: clip.ratchet }, (_, index) => index) as strike (strike)}|{/each}</span
+                  >
                   <span class="clip-copy">{clip.ratchet === 1 ? 'Hit' : `×${clip.ratchet}`}</span>
                 {/if}
               </div>
@@ -233,56 +281,249 @@
                   onkeydown={(event) => {
                     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
                       event.preventDefault();
-                      editor.resizeSelectedLoop(clip.id, clip.lengthTicks + (event.key === 'ArrowLeft' ? -24 : 24));
+                      editor.resizeSelectedLoop(
+                        clip.id,
+                        clip.lengthTicks + (event.key === 'ArrowLeft' ? -24 : 24),
+                      );
                     }
                   }}
                 ></span>
               {/if}
             {/each}
             {#if ghostFor(track.id, loopLane)}
-              <i aria-hidden="true" class:loop={loopLane} class="ghost" style={ghostFor(track.id, loopLane)}></i>
+              <i
+                aria-hidden="true"
+                class:loop={loopLane}
+                class="ghost"
+                style={ghostFor(track.id, loopLane)}
+              ></i>
             {/if}
-            <i aria-hidden="true" class="playhead" style={`--playhead: ${(editor.playheadTick / totalTicks) * 100}%`}></i>
+            <i
+              aria-hidden="true"
+              class="playhead"
+              style={`--playhead: ${(editor.playheadTick / totalTicks) * 100}%`}
+            ></i>
           </div>
         </div>
       {/each}
       {#if marquee}
-        <i aria-hidden="true" class="marquee" style={`left: ${Math.min(marquee.startX, marquee.endX)}px; top: ${Math.min(marquee.startY, marquee.endY)}px; width: ${Math.abs(marquee.endX - marquee.startX)}px; height: ${Math.abs(marquee.endY - marquee.startY)}px`}></i>
+        <i
+          aria-hidden="true"
+          class="marquee"
+          style={`left: ${Math.min(marquee.startX, marquee.endX)}px; top: ${Math.min(marquee.startY, marquee.endY)}px; width: ${Math.abs(marquee.endX - marquee.startX)}px; height: ${Math.abs(marquee.endY - marquee.startY)}px`}
+        ></i>
       {/if}
     </div>
   </div>
 </section>
 
 <style>
-  .timeline { display: grid; min-block-size: 360px; overflow: hidden; background: var(--audle-deck-raised); box-shadow: var(--audle-deck-edge); }
-  .timeline-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-block-size: 58px; padding: 10px 14px; border-block-end: 1px solid var(--audle-outline); }
-  .timeline-head p { margin: 0 0 2px; color: var(--audle-text-muted); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
-  .timeline-head strong { font-size: 0.85rem; }
-  .timeline-head button { min-inline-size: 72px; min-block-size: 44px; border: 1px solid var(--audle-outline); background: var(--audle-control); box-shadow: var(--audle-control-rest); cursor: pointer; font-weight: 700; }
-  .timeline-head button.active { background: var(--audle-selection-surface); box-shadow: inset 0 0 0 1px var(--audle-selection-light), var(--audle-control-contact); }
-  .timeline-scroll { min-block-size: 0; overflow: auto; overscroll-behavior: contain; }
-  .grid { --header-w: 154px; --bar-min: 260px; position: relative; min-inline-size: max(100%, calc(var(--header-w) + var(--bar-min) * var(--bars, 1))); }
+  .timeline {
+    display: grid;
+    min-block-size: 360px;
+    overflow: hidden;
+    background: var(--audle-deck-raised);
+    box-shadow: var(--audle-deck-edge);
+  }
+  .timeline-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-block-size: 58px;
+    padding: 10px 14px;
+    border-block-end: 1px solid var(--audle-outline);
+  }
+  .timeline-head p {
+    margin: 0 0 2px;
+    color: var(--audle-text-muted);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .timeline-head strong {
+    font-size: 0.85rem;
+  }
+  .timeline-head button {
+    min-inline-size: 72px;
+    min-block-size: 44px;
+    border: 1px solid var(--audle-outline);
+    background: var(--audle-control);
+    box-shadow: var(--audle-control-rest);
+    cursor: pointer;
+    font-weight: 700;
+  }
+  .timeline-head button.active {
+    background: var(--audle-selection-surface);
+    box-shadow:
+      inset 0 0 0 1px var(--audle-selection-light),
+      var(--audle-control-contact);
+  }
+  .timeline-scroll {
+    min-block-size: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+  .grid {
+    --header-w: 154px;
+    --bar-min: 260px;
+    position: relative;
+    min-inline-size: max(100%, calc(var(--header-w) + var(--bar-min) * var(--bars, 1)));
+  }
   /* Desktop fits a four-bar loop without scrolling: 120px is still 7.5px per sixteenth. */
-  @media (min-width: 960px) { .grid { --bar-min: 120px; } }
-  .ruler { position: sticky; inset-block-start: 0; z-index: 5; display: grid; grid-template-columns: var(--header-w) repeat(var(--bars), minmax(var(--bar-min), 1fr)); cursor: pointer; min-block-size: 36px; background: var(--audle-deck); border-block-end: 1px solid var(--audle-grid-major); }
-  .ruler span { display: grid; place-items: center start; padding-inline: 10px; border-inline-end: 1px solid var(--audle-grid-major); color: var(--audle-text-muted); font-family: ui-monospace, monospace; font-size: 0.68rem; }
-  .ruler .sticky { position: sticky; inset-inline-start: 0; z-index: 2; background: var(--audle-deck); }
-  .lane { display: grid; grid-template-columns: var(--header-w) minmax(calc(var(--bar-min) * var(--bars, 1)), 1fr); min-block-size: 56px; }
-  .lane-content { position: relative; cursor: crosshair; min-block-size: 56px; overflow: hidden; background: var(--audle-well); box-shadow: inset 0 2px 5px oklch(0.025 0.007 255 / 0.88), inset 0 1px 0 oklch(0.57 0.02 255 / 0.14); }
-  .grid-line { position: absolute; inset-block: 0; inset-inline-start: var(--step); inline-size: 1px; background: var(--audle-grid-minor); pointer-events: none; }
-  .grid-line.quarter { background: var(--audle-outline-subtle); }
-  .grid-line.bar { inline-size: 2px; background: var(--audle-grid-major); }
-  .clip { position: absolute; z-index: 2; inset-block: 8px; inset-inline-start: var(--start); display: flex; align-items: center; gap: 4px; inline-size: max(var(--width), 16px); min-inline-size: 16px; overflow: hidden; border: 1px solid var(--audle-loop-light); background: var(--audle-loop-surface); box-shadow: inset 0 0 0 1px var(--audle-loop-light); color: var(--audle-text); cursor: pointer; }
-  .clip.hit { border-color: var(--audle-one-shot-light); background: var(--audle-one-shot-surface); box-shadow: inset 0 0 0 1px var(--audle-one-shot-light); }
-  .clip.selected { z-index: 3; outline: 2px dashed var(--audle-selection-light); outline-offset: 2px; box-shadow: inset 0 0 0 1px var(--audle-selection-light); }
-  .resize { position: absolute; z-index: 4; inset-block: 8px; inset-inline-start: calc(var(--edge) - 6px); inline-size: 12px; border-inline-start: 1px solid var(--audle-loop-light); cursor: ew-resize; touch-action: none; }
-  .hit .strikes { color: var(--audle-one-shot-light); letter-spacing: 1px; }
-  .clip-copy { overflow: hidden; font-family: ui-monospace, monospace; font-size: 0.68rem; white-space: nowrap; }
-  .playhead, .playhead-ruler { position: absolute; z-index: 4; inset-block: 0; inset-inline-start: var(--playhead); inline-size: 2px; background: var(--audle-playback-light); pointer-events: none; }
-  .playhead-ruler { z-index: 6; inset-inline-start: calc(var(--header-w) + (100% - var(--header-w)) * var(--playhead-ratio)); }
-  .ghost { position: absolute; z-index: 1; inset-block: 8px; inset-inline-start: var(--start); inline-size: var(--width); border: 1px dashed var(--audle-one-shot-light); opacity: 0.45; pointer-events: none; }
-  .ghost.loop { border-color: var(--audle-loop-light); }
-  .marquee { position: absolute; z-index: 8; border: 2px dashed var(--audle-selection-light); background: oklch(0.25 0.06 28 / 0.18); pointer-events: none; }
-  .timeline.dragging .grid { touch-action: none; }
-  @media (max-width: 959px) { .timeline { min-block-size: 300px; } .timeline-scroll { max-block-size: 54vh; } }
+  @media (min-width: 960px) {
+    .grid {
+      --bar-min: 120px;
+    }
+  }
+  .ruler {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: var(--header-w) repeat(var(--bars), minmax(var(--bar-min), 1fr));
+    cursor: pointer;
+    min-block-size: 36px;
+    background: var(--audle-deck);
+    border-block-end: 1px solid var(--audle-grid-major);
+  }
+  .ruler span {
+    display: grid;
+    place-items: center start;
+    padding-inline: 10px;
+    border-inline-end: 1px solid var(--audle-grid-major);
+    color: var(--audle-text-muted);
+    font-family: ui-monospace, monospace;
+    font-size: 0.68rem;
+  }
+  .ruler .sticky {
+    position: sticky;
+    inset-inline-start: 0;
+    z-index: 2;
+    background: var(--audle-deck);
+  }
+  .lane {
+    display: grid;
+    grid-template-columns: var(--header-w) minmax(calc(var(--bar-min) * var(--bars, 1)), 1fr);
+    min-block-size: 56px;
+  }
+  .lane-content {
+    position: relative;
+    cursor: crosshair;
+    min-block-size: 56px;
+    overflow: hidden;
+    background: var(--audle-well);
+    box-shadow:
+      inset 0 2px 5px oklch(0.025 0.007 255 / 0.88),
+      inset 0 1px 0 oklch(0.57 0.02 255 / 0.14);
+  }
+  .grid-line {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: var(--step);
+    inline-size: 1px;
+    background: var(--audle-grid-minor);
+    pointer-events: none;
+  }
+  .grid-line.quarter {
+    background: var(--audle-outline-subtle);
+  }
+  .grid-line.bar {
+    inline-size: 2px;
+    background: var(--audle-grid-major);
+  }
+  .clip {
+    position: absolute;
+    z-index: 2;
+    inset-block: 8px;
+    inset-inline-start: var(--start);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    inline-size: max(var(--width), 16px);
+    min-inline-size: 16px;
+    overflow: hidden;
+    border: 1px solid var(--audle-loop-light);
+    background: var(--audle-loop-surface);
+    box-shadow: inset 0 0 0 1px var(--audle-loop-light);
+    color: var(--audle-text);
+    cursor: pointer;
+  }
+  .clip.hit {
+    border-color: var(--audle-one-shot-light);
+    background: var(--audle-one-shot-surface);
+    box-shadow: inset 0 0 0 1px var(--audle-one-shot-light);
+  }
+  .clip.selected {
+    z-index: 3;
+    outline: 2px dashed var(--audle-selection-light);
+    outline-offset: 2px;
+    box-shadow: inset 0 0 0 1px var(--audle-selection-light);
+  }
+  .resize {
+    position: absolute;
+    z-index: 4;
+    inset-block: 8px;
+    inset-inline-start: calc(var(--edge) - 6px);
+    inline-size: 12px;
+    border-inline-start: 1px solid var(--audle-loop-light);
+    cursor: ew-resize;
+    touch-action: none;
+  }
+  .hit .strikes {
+    color: var(--audle-one-shot-light);
+    letter-spacing: 1px;
+  }
+  .clip-copy {
+    overflow: hidden;
+    font-family: ui-monospace, monospace;
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+  .playhead,
+  .playhead-ruler {
+    position: absolute;
+    z-index: 4;
+    inset-block: 0;
+    inset-inline-start: var(--playhead);
+    inline-size: 2px;
+    background: var(--audle-playback-light);
+    pointer-events: none;
+  }
+  .playhead-ruler {
+    z-index: 6;
+    inset-inline-start: calc(var(--header-w) + (100% - var(--header-w)) * var(--playhead-ratio));
+  }
+  .ghost {
+    position: absolute;
+    z-index: 1;
+    inset-block: 8px;
+    inset-inline-start: var(--start);
+    inline-size: var(--width);
+    border: 1px dashed var(--audle-one-shot-light);
+    opacity: 0.45;
+    pointer-events: none;
+  }
+  .ghost.loop {
+    border-color: var(--audle-loop-light);
+  }
+  .marquee {
+    position: absolute;
+    z-index: 8;
+    border: 2px dashed var(--audle-selection-light);
+    background: oklch(0.25 0.06 28 / 0.18);
+    pointer-events: none;
+  }
+  .timeline.dragging .grid {
+    touch-action: none;
+  }
+  @media (max-width: 959px) {
+    .timeline {
+      min-block-size: 300px;
+    }
+    .timeline-scroll {
+      max-block-size: 54vh;
+    }
+  }
 </style>

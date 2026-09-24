@@ -5,7 +5,9 @@ import type { CompositionV1, Track } from './model';
 import {
   compositionToWire,
   decodeShare,
+  decodeShared,
   encodeShare,
+  encodePerformanceShare,
   fingerprintForComposition,
 } from './share-codec';
 
@@ -84,6 +86,32 @@ describe('share codec', () => {
     expect(await fingerprintForComposition(decoded.value)).toBe(
       await fingerprintForComposition(composition),
     );
+  });
+
+  it('preserves legacy links and replays performance events against reconstructed track IDs', () => {
+    const composition = baseComposition();
+    composition.tracks[0]!.clips.push({
+      id: 'original-loop',
+      kind: 'loop',
+      startTick: 0,
+      lengthTicks: 384,
+      sourceOffsetTick: 0,
+    });
+    const legacy = decodeShared(encodeShare(composition));
+    expect(legacy.ok && legacy.value.performance).toBeUndefined();
+    const encoded = encodePerformanceShare({
+      version: 1,
+      composition,
+      durationTicks: 768,
+      events: [{ tick: 384, trackId: composition.tracks[0]!.id, kind: 'mute', value: true }],
+    });
+    const decoded = decodeShared(encoded);
+    expect(decoded.ok && decoded.value.performance?.events).toEqual([
+      { tick: 384, trackId: 'track-0', kind: 'mute', value: true },
+    ]);
+    expect(
+      decodeShared(encodedWire([2, compositionToWire(composition), 768, [[384, 99, 0, 1]]])).ok,
+    ).toBe(false);
   });
 
   it('fails closed for malformed, unsupported, or non-canonical payloads', () => {

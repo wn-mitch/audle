@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { decodeShare } from '../domain/share-codec';
 import type { CompositionV1 } from '../domain/model';
 import { validateComposition } from '../domain/schema';
+import { validatePerformance, type PerformanceV1 } from '../domain/performance';
 
 const importsSchema = z.array(z.string()).max(12);
 const tutorialSchema = z.boolean();
@@ -9,6 +10,7 @@ const fingerprintSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 
 const storageKey = {
   draft: (date: string) => `audle:draft:v1:${date}`,
+  performance: (date: string) => `audle:performance:v1:${date}`,
   imports: (date: string) => `audle:imports:v1:${date}`,
   favorite: (date: string) => `audle:favorite:v1:${date}`,
   tutorial: 'audle:tutorial:v1',
@@ -52,6 +54,22 @@ export const loadDraft = (date: string): CompositionV1 | undefined => {
 export const saveDraft = (composition: CompositionV1): boolean =>
   validateComposition(composition) !== undefined &&
   writeJson(storageKey.draft(composition.challenge.date), composition);
+export const loadPerformance = (date: string): PerformanceV1 | undefined => {
+  const performance = validatePerformance(readJson(storageKey.performance(date)));
+  return performance?.composition.challenge.date === date ? performance : undefined;
+};
+
+export const savePerformance = (performance: PerformanceV1): boolean =>
+  validatePerformance(performance) !== undefined &&
+  writeJson(storageKey.performance(performance.composition.challenge.date), performance);
+
+export const clearPerformance = (date: string): void => {
+  try {
+    getStorage()?.removeItem(storageKey.performance(date));
+  } catch {
+    // Private browsing can deny storage writes.
+  }
+};
 
 export const loadImports = (date: string): string[] => {
   const parsed = importsSchema.safeParse(readJson(storageKey.imports(date)));

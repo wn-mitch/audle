@@ -8,6 +8,7 @@ import {
   type CompositionV1,
   type TrackControls,
 } from '../domain/model';
+import type { PerformanceV1 } from '../domain/performance';
 
 export type Unsubscribe = () => void;
 export interface TransportSnapshot {
@@ -23,6 +24,14 @@ export interface AudioEngine {
   stop(): void;
   armRecord(enabled: boolean): void;
   audition(sampleId: string): void;
+  absoluteTick(): number;
+  scheduleTrackControls(
+    trackId: string,
+    controls: Partial<TrackControls>,
+    onCommit: (tick: number) => void,
+  ): Unsubscribe;
+  scheduleNextBar(onCommit: (tick: number) => void): Unsubscribe;
+  playPerformance(performance: PerformanceV1): void;
   setTrackControls(trackId: string, controls: TrackControls): void;
   subscribeTransport(listener: (snapshot: TransportSnapshot) => void): Unsubscribe;
   dispose(): void;
@@ -63,6 +72,10 @@ export class ToneAudioEngine implements AudioEngine {
   private armed = false;
   private disposed = false;
   private readonly transportListenerId: number;
+  private readonly pending = new Set<number>();
+  private readonly performanceEvents = new Set<number>();
+  private loopRounds = 0;
+  private lastLoopTick = 0;
 
   constructor() {
     this.limiter.connect(this.analyser);
@@ -139,8 +152,14 @@ export class ToneAudioEngine implements AudioEngine {
   }
 
   stop(): void {
+    for (const id of this.pending) this.transport.clear(id);
+    this.pending.clear();
+    for (const id of this.performanceEvents) this.transport.clear(id);
+    this.performanceEvents.clear();
     this.transport.stop();
     this.transport.ticks = 0;
+    this.loopRounds = 0;
+    this.lastLoopTick = 0;
     for (const source of this.soundingSources.keys()) source.dispose();
     this.soundingSources.clear();
     this.emitTransport();
@@ -194,6 +213,106 @@ export class ToneAudioEngine implements AudioEngine {
       if (sourceTrackId === trackId && source instanceof Tone.GrainPlayer)
         source.detune = (normalized + controls.tuneSemitones) * 100;
     }
+  }
+  absoluteTick(): number {
+    const tick = this.transport.ticks;
+    if (this.transport.loop && tick < this.lastLoopTick) this.loopRounds += 1;
+    this.lastLoopTick = tick;
+    return this.loopRounds * (this.composition?.bars ?? 1) * 384 + tick;
+  }
+
+  scheduleNextBar(onCommit: (tick: number) => void): Unsubscribe {
+    const minimumTick = Math.floor(this.absoluteTick() / 384 + 1) * 384;
+    let cancelled = false;
+    const id = this.transport.scheduleRepeat(
+      (time) => {
+        const tick = Math.round(this.absoluteTick() / 384) * 384;
+        if (cancelled || tick < minimumTick) return;
+        this.transport.clear(id);
+        this.pending.delete(id);
+        Tone.getDraw().schedule(() => {
+          if (!cancelled) onCommit(tick);
+        }, time);
+      },
+      transportTime(384),
+      transportTime(0),
+    );
+    this.pending.add(id);
+    return () => {
+      cancelled = true;
+      this.transport.clear(id);
+      this.pending.delete(id);
+    };
+  }
+
+  scheduleTrackControls(
+    trackId: string,
+    controls: Partial<TrackControls>,
+    onCommit: (tick: number) => void,
+  ): Unsubscribe {
+    const minimumTick = Math.floor(this.absoluteTick() / 384 + 1) * 384;
+    let cancelled = false;
+    const id = this.transport.scheduleRepeat(
+      (time) => {
+        const tick = Math.round(this.absoluteTick() / 384) * 384;
+        if (cancelled || tick < minimumTick) return;
+        this.transport.clear(id);
+        this.pending.delete(id);
+        if (!this.composition?.tracks.some((track) => track.id === trackId)) return;
+        this.composition = {
+          ...this.composition,
+          tracks: this.composition.tracks.map((track) =>
+            track.id === trackId
+              ? { ...track, controls: { ...track.controls, ...controls } }
+              : track,
+          ),
+        };
+        this.applyTrackControlValues(time);
+        Tone.getDraw().schedule(() => {
+          if (!cancelled) onCommit(tick);
+        }, time);
+      },
+      transportTime(384),
+      transportTime(0),
+    );
+    this.pending.add(id);
+    return () => {
+      cancelled = true;
+      this.transport.clear(id);
+      this.pending.delete(id);
+    };
+  }
+
+  playPerformance(performance: PerformanceV1): void {
+    this.stop();
+    this.setComposition(performance.composition);
+    this.transport.bpm.value = performance.composition.challenge.bpm;
+    this.transport.loop = false;
+    const controls = new Map(
+      performance.composition.tracks.map((track) => [track.id, { ...track.controls }]),
+    );
+    for (const event of performance.events) {
+      const id = this.transport.scheduleOnce((time) => {
+        const next = controls.get(event.trackId);
+        if (!next) return;
+        next[event.kind === 'mute' ? 'muted' : 'solo'] = event.value;
+        const soloed = [...controls.values()].some((value) => value.solo);
+        for (const [trackId, values] of controls) {
+          const gain = this.nodes.get(trackId)?.gain.gain;
+          gain?.setValueAtTime(
+            values.muted || (soloed && !values.solo) ? 0 : 10 ** (values.gainDb / 20),
+            time,
+          );
+        }
+      }, transportTime(event.tick));
+      this.performanceEvents.add(id);
+    }
+    const endId = this.transport.scheduleOnce((time) => {
+      Tone.getDraw().schedule(() => this.stop(), time);
+    }, transportTime(performance.durationTicks));
+    this.performanceEvents.add(endId);
+    this.transport.start();
+    this.emitTransport();
   }
 
   subscribeTransport(listener: (snapshot: TransportSnapshot) => void): Unsubscribe {
@@ -273,7 +392,7 @@ export class ToneAudioEngine implements AudioEngine {
     this.applyTrackControlValues();
   }
 
-  private applyTrackControlValues(): void {
+  private applyTrackControlValues(time?: number): void {
     if (!this.composition) return;
     const soloed = this.composition.tracks.some((track) => track.controls.solo);
     for (const track of this.composition.tracks) {
@@ -281,10 +400,12 @@ export class ToneAudioEngine implements AudioEngine {
       if (!nodes) continue;
       nodes.filter.frequency.value = track.controls.cutoffHz;
       nodes.panner.pan.value = track.controls.pan;
-      nodes.gain.gain.value =
+      const gain =
         track.controls.muted || (soloed && !track.controls.solo)
           ? 0
           : 10 ** (track.controls.gainDb / 20);
+      if (time === undefined) nodes.gain.gain.value = gain;
+      else nodes.gain.gain.setValueAtTime(gain, time);
     }
   }
 

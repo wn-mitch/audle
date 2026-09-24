@@ -30,11 +30,11 @@
     aria-valuemax={max}
     aria-valuemin={min}
     aria-valuenow={value}
-    max={max}
-    min={min}
-    step={step}
+    {max}
+    {min}
+    {step}
     type="range"
-    value={value}
+    {value}
     onpointerdown={onStart}
     onpointerup={onEnd}
     onkeydown={onStart}
@@ -55,8 +55,25 @@
     color: var(--audle-text);
   }
 
-  .knob > span { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
-  output { color: var(--audle-playback-light); font-family: ui-monospace, monospace; font-size: 0.75rem; }
-  input { grid-column: 1 / -1; inline-size: 100%; accent-color: var(--audle-playback-light); cursor: ew-resize; }
-  .knob:has(input:active) { background: var(--audle-control-pressed); box-shadow: var(--audle-control-contact); }
+  .knob > span {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  output {
+    color: var(--audle-playback-light);
+    font-family: ui-monospace, monospace;
+    font-size: 0.75rem;
+  }
+  input {
+    grid-column: 1 / -1;
+    inline-size: 100%;
+    accent-color: var(--audle-playback-light);
+    cursor: ew-resize;
+  }
+  .knob:has(input:active) {
+    background: var(--audle-control-pressed);
+    box-shadow: var(--audle-control-contact);
+  }
 </style>

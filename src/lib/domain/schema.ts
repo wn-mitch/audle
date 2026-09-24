@@ -274,3 +274,19 @@ export const ShareWireSchema = z.tuple([
 ]);
 
 export type ShareWire = z.infer<typeof ShareWireSchema>;
+
+export const PerformanceShareWireSchema = z.tuple([
+  z.literal(2),
+  ShareWireSchema,
+  z.number().int().positive(),
+  z.array(
+    z.tuple([
+      z.number().int().nonnegative(),
+      z.number().int().nonnegative(),
+      z.union([z.literal(0), z.literal(1)]),
+      z.union([z.literal(0), z.literal(1)]),
+    ]),
+  ),
+]);
+
+export type PerformanceShareWire = z.infer<typeof PerformanceShareWireSchema>;

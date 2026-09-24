@@ -35,16 +35,16 @@
 
 - Use solid fills only. No gradients, glass, chrome, colored page fog, external neon halos, beige/brown surfaces, retro bezels, or toy offset shadows.
 - Bright role color must be clipped to a glyph, waveform, meter, hard ring, or owning element's inner edge. Color never stands alone: pair it with an icon, label, line treatment, shape, or ARIA state.
-- Loop is ultraviolet, one-shot is electric cyan, selection is hot coral, playback is acid lime, and recording/error is warm red.
+- In Arrange, loop is ultraviolet, one-shot is electric cyan, selection is hot coral, playback is acid lime, and recording/error is warm red. Play's eight sound objects each have a restrained identifying hue, confined to their glyph and active edge.
 - Role controls stay dark at rest. Selection preserves loop or hit identity and adds a coral dashed ring.
 - Use `--audle-text` for primary text and `--audle-text-muted` only for secondary metadata on dark surfaces.
-- Focus is a 3px visible ring. Motion uses only transform and opacity with quick compression and ease-out-quint release, never bounce or elastic easing.
+- Focus is a 3px visible ring. Motion uses only transform and opacity with quick compression and ease-out-quint release, never bounce or elastic easing. Beat motion follows the audio transport.
 - With reduced motion, preserve all static state cues while removing compression, entrances, beat pulsing, and ruler sweeps.
 
 ## Layout
 
-Desktop uses a 300px pad bank, flexible precision timeline, and 260px tuning deck. Phone and tablet stack the 2x4 pad bank above a scrollable timeline, use sticky lane labels, put tuning inline, and pin transport above the safe area.
+Play is the entry surface: a 4×2 sound field on desktop and tablet, 2×4 on phone, with the selected sound's pattern strip and optional tuning beneath it. Arrange retains the 300px pad bank, flexible precision timeline, and 260px tuning deck on desktop; phone and tablet stack the pad bank above the scrollable timeline, use sticky lane labels, put tuning inline, and pin transport above the safe area. Finish separates the editable loop and captured take into two panels that stack on phone.
 
 ## Components
 
-Pads, timeline clips, transport controls, knobs, gallery rows, and notices are tactile dark surfaces with hard structural separators. Primary empty action is “Tap any sound”; starter action is “Remix today’s starter”; voice cloning is “Add a layer”; repeat is “Fill the loop”; local favorite is “Your pick”.
+Sound objects, pads, timeline clips, transport controls, knobs, gallery rows, and notices are tactile dark surfaces with hard structural separators. Each object pairs its shape, number, label, role, and active state; a queued state says “Next bar.” The Play pattern strip keeps precision editing optional. Arrange's starter action is “Remix today’s starter”; voice cloning is “Add a layer”; repeat is “Fill the loop”; local favorite is “Your pick”.
