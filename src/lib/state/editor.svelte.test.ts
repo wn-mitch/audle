@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { AudioEngine, TransportSnapshot, Unsubscribe } from '../audio/engine';
 import { starterForChallenge } from '../data/examples';
 import { challengeForDate } from '../domain/challenge';
+import { LIVE_PATTERNS } from '../domain/live';
 import { encodeShare } from '../domain/share-codec';
-import type { CompositionV1, TrackControls } from '../domain/model';
+import { BASE_TRACKS, type CompositionV1, type TrackControls } from '../domain/model';
 import type { PerformanceV1 } from '../domain/performance';
 import type { JevAnswers } from '../jev/jam';
 import { EditorState, type JevClient } from './editor.svelte';
@@ -109,15 +110,15 @@ describe('EditorState', () => {
     await state.loadAudio();
     await state.toggleRecording();
     state.playheadTick = 17;
-    state.pressPad(challenge.sampleIds[6]);
+    state.pressPad(challenge.sampleIds[12]);
 
-    expect(engine.auditioned).toEqual([challenge.sampleIds[6]]);
-    expect(state.composition.tracks[6]!.clips).toMatchObject([{ startTick: 24, ratchet: 1 }]);
+    expect(engine.auditioned).toEqual([challenge.sampleIds[12]]);
+    expect(state.composition.tracks[12]!.clips).toMatchObject([{ startTick: 24, ratchet: 1 }]);
     expect(storage.get(`audle:draft:v1:${challenge.date}`)).toBeDefined();
     const afterRecord = encodeShare(state.composition);
 
     state.undo();
-    expect(state.composition.tracks[6]!.clips).toHaveLength(0);
+    expect(state.composition.tracks[12]!.clips).toHaveLength(0);
     state.redo();
     expect(encodeShare(state.composition)).toBe(afterRecord);
     state.destroy();
@@ -126,7 +127,7 @@ describe('EditorState', () => {
   it('groups a knob gesture into one undo transaction and preserves the source voice', () => {
     const engine = new FakeAudioEngine();
     const state = new EditorState(engine, challengeForDate('2026-08-12'));
-    state.selectedTrackId = 'track-2';
+    state.selectedTrackId = 'track-4';
     state.addLayer();
     const layer = state.selectedTrack!;
     state.beginControlGesture();
@@ -135,7 +136,7 @@ describe('EditorState', () => {
     state.endControlGesture();
 
     expect(state.selectedTrack?.controls).toMatchObject({ tuneSemitones: 5, cutoffHz: 600 });
-    expect(state.composition.tracks[2]!.controls).toMatchObject({
+    expect(state.composition.tracks[4]!.controls).toMatchObject({
       tuneSemitones: 0,
       cutoffHz: 18000,
     });
@@ -150,11 +151,11 @@ describe('EditorState', () => {
     const state = new EditorState(engine, challenge, starterForChallenge(challenge));
     await state.loadAudio();
     await state.toggleRecording();
-    state.pressPad(challenge.sampleIds[6]);
-    expect(state.composition.tracks[6]!.clips).toHaveLength(5);
-    state.selectedTrackId = 'track-2';
+    state.pressPad(challenge.sampleIds[12]);
+    expect(state.composition.tracks[12]!.clips).toHaveLength(5);
+    state.selectedTrackId = 'track-4';
     state.addLayer();
-    expect(state.composition.tracks).toHaveLength(9);
+    expect(state.composition.tracks).toHaveLength(BASE_TRACKS + 1);
     state.destroy();
   });
 
@@ -163,12 +164,12 @@ describe('EditorState', () => {
     const challenge = challengeForDate('2026-08-12');
     const state = new EditorState(engine, challenge);
     await state.loadAudio();
-    state.placeAt('track-4', 401);
+    state.placeAt('track-8', 401);
     state.placeAt('track-0', 500);
-    expect(state.composition.tracks[4]!.clips).toMatchObject([{ kind: 'hit', startTick: 408 }]);
+    expect(state.composition.tracks[8]!.clips).toMatchObject([{ kind: 'hit', startTick: 408 }]);
     expect(state.composition.tracks[0]!.clips).toMatchObject([{ kind: 'loop', startTick: 384 }]);
     expect(state.playheadTick).toBe(504);
-    expect(engine.auditioned).toEqual([challenge.sampleIds[4]]);
+    expect(engine.auditioned).toEqual([challenge.sampleIds[8]]);
     state.placeAt('track-0', 700);
     expect(state.composition.tracks[0]!.clips).toHaveLength(0);
     state.destroy();
@@ -180,9 +181,9 @@ describe('EditorState', () => {
     const requests: Parameters<JevClient>[0][] = [];
     const answers: JevAnswers = {
       'track-0': { full: 1 },
-      'track-2': { full: 1 },
-      'track-4': { four: 0.97, drive: 0.03 },
-      'track-6': { rest: 1 },
+      'track-4': { full: 1 },
+      'track-8': { four: 0.97, drive: 0.03 },
+      'track-12': { rest: 1 },
     };
     const jev: JevClient = async (request) => {
       requests.push(request);
@@ -201,15 +202,15 @@ describe('EditorState', () => {
 
     expect(requests[0]!.vibe).toBe('eerie');
     expect(requests[0]!.tracks.filter((track) => track.fill).map((track) => track.index)).toEqual([
-      1, 3, 4, 5, 7,
+      1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15,
     ]);
     expect(state.composition.tracks[0]!.clips).toEqual(starterBeat);
-    expect(state.composition.tracks[4]!.clips).toHaveLength(8);
-    expect(state.jamPicks).toEqual({ 'track-4': 'four' });
+    expect(state.composition.tracks[8]!.clips).toHaveLength(8);
+    expect(state.jamPicks).toEqual({ 'track-8': 'four' });
     expect(state.notice).toContain('Jev filled 1 track');
 
     state.undo();
-    expect(state.composition.tracks[4]!.clips).toHaveLength(0);
+    expect(state.composition.tracks[8]!.clips).toHaveLength(0);
     expect(state.jamPicks).toEqual({});
     state.destroy();
   });
@@ -277,17 +278,31 @@ describe('EditorState', () => {
     reloaded.destroy();
   });
 
+  it('applies every feel to a filled sound and reports it back', async () => {
+    const engine = new FakeAudioEngine();
+    const state = new EditorState(engine, challengeForDate('2026-08-12'));
+    await state.loadAudio();
+
+    for (const trackId of ['track-0', 'track-8']) {
+      for (const feel of LIVE_PATTERNS) {
+        state.chooseLivePattern(trackId, feel);
+        expect(state.livePattern(trackId), `${trackId} on ${feel}`).toBe(feel);
+      }
+    }
+    state.destroy();
+  });
+
   it('queues a newly added voice until the next musical bar', async () => {
     const engine = new FakeAudioEngine();
     const state = new EditorState(engine, challengeForDate('2026-08-12'));
     await state.loadAudio();
     await state.toggleLive('track-0');
     engine.advance(96);
-    await state.toggleLive('track-1');
-    expect(state.liveStatus('track-1')).toBe('queued-on');
-    expect(state.composition.tracks[1]!.clips).toHaveLength(state.composition.bars);
+    await state.toggleLive('track-2');
+    expect(state.liveStatus('track-2')).toBe('queued-on');
+    expect(state.composition.tracks[2]!.clips).toHaveLength(state.composition.bars);
     engine.advance(384);
-    expect(state.liveStatus('track-1')).toBe('on');
+    expect(state.liveStatus('track-2')).toBe('on');
     state.destroy();
   });
 
@@ -297,26 +312,26 @@ describe('EditorState', () => {
     const state = new EditorState(engine, challenge);
     await state.loadAudio();
     await state.toggleLive('track-0');
-    await state.toggleLive('track-1');
+    await state.toggleLive('track-2');
     await state.startCapture();
     expect(state.captureStatus).toBe('count-in');
     engine.advance(384);
     expect(state.captureStatus).toBe('recording');
     await state.toggleLive('track-0');
-    state.toggleLiveSolo('track-1');
+    state.toggleLiveSolo('track-2');
     engine.advance(768);
     engine.advance(840);
     state.stopCapture();
     expect(state.performance?.events).toEqual([
       { tick: 384, trackId: 'track-0', kind: 'mute', value: true },
-      { tick: 384, trackId: 'track-1', kind: 'solo', value: true },
+      { tick: 384, trackId: 'track-2', kind: 'solo', value: true },
     ]);
     expect(state.performance?.composition.tracks[0]!.controls.muted).toBe(false);
     expect(state.composition.tracks[0]!.controls.muted).toBe(false);
-    expect(state.composition.tracks[1]!.controls.solo).toBe(false);
+    expect(state.composition.tracks[2]!.controls.solo).toBe(false);
     expect(storage.get(`audle:performance:v1:${challenge.date}`)).toBeDefined();
     state.undo();
-    expect(state.composition.tracks[1]!.clips).toHaveLength(0);
+    expect(state.composition.tracks[2]!.clips).toHaveLength(0);
     state.undo();
     expect(state.composition.tracks[0]!.clips).toHaveLength(0);
     state.destroy();

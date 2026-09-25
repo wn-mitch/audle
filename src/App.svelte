@@ -115,7 +115,11 @@
     view = 'shared';
     if (!result.ok) {
       shared = undefined;
-      sharedError = 'This Audle link is damaged or from a newer version';
+      // Links made before the kit grew to sixteen sources can no longer be rebuilt.
+      sharedError =
+        result.error === 'too-old'
+          ? 'This link was made with an earlier version of Audle. Ask for a fresh one.'
+          : 'This Audle link is damaged or from a newer version';
       return;
     }
     shared = result.value;
@@ -323,7 +327,6 @@
     <StatusNotice message={editor.notice} onDismiss={() => (editor.notice = undefined)} />
     {#if makerMode === 'play'}
       <PlayStage
-        {challenge}
         {editor}
         onArrange={() => showMaker('arrange')}
         onFinish={() => showMaker('finish')}

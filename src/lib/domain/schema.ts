@@ -4,9 +4,9 @@ import { challengeForDate } from './challenge';
 import {
   BASE_TRACKS,
   MAX_CLIPS,
+  MAX_SOURCE_TICKS,
   MAX_TRACKS,
   PITCH_CLASSES,
-  SOURCE_LOOP_TICKS,
   TICKS_PER_BAR,
   TICKS_PER_SIXTEENTH,
   type CompositionV1,
@@ -22,6 +22,14 @@ const hasStep = (value: number, step: number): boolean =>
 
 const pitchClassSchema = z.enum(PITCH_CLASSES);
 const sampleIdsSchema = z.tuple([
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
   z.string(),
   z.string(),
   z.string(),
@@ -85,7 +93,7 @@ const loopClipSchema = z
       .number()
       .int()
       .min(0)
-      .max(SOURCE_LOOP_TICKS - TICKS_PER_SIXTEENTH)
+      .max(MAX_SOURCE_TICKS - TICKS_PER_SIXTEENTH)
       .refine(isGridTick),
   })
   .strict();
@@ -214,7 +222,7 @@ export const CompositionSchema = z
       context.addIssue({
         code: 'custom',
         path: ['tracks'],
-        message: 'A composition may contain at most 256 clips.',
+        message: `A composition may contain at most ${MAX_CLIPS} clips.`,
       });
     }
   });
@@ -290,3 +298,58 @@ export const PerformanceShareWireSchema = z.tuple([
 ]);
 
 export type PerformanceShareWire = z.infer<typeof PerformanceShareWireSchema>;
+
+/** Link formats carrying sixteen sources. The eight-source formats above stay readable. */
+const wireSampleIdsV2Schema = z.tuple([
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+]);
+
+const wireChallengeV2Schema = z.tuple([
+  z.literal(1),
+  z.string(),
+  z.number().int().min(0).max(0xffff_ffff),
+  z.number().int().positive(),
+  z.number().int().min(0).max(11),
+  z.union([z.literal(0), z.literal(1)]),
+  wireSampleIdsV2Schema,
+]);
+
+export const ShareWireV2Schema = z.tuple([
+  z.literal(3),
+  wireChallengeV2Schema,
+  z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
+  z.array(wireTrackSchema),
+]);
+
+export type ShareWireV2 = z.infer<typeof ShareWireV2Schema>;
+
+export const PerformanceShareWireV2Schema = z.tuple([
+  z.literal(4),
+  ShareWireV2Schema,
+  z.number().int().positive(),
+  z.array(
+    z.tuple([
+      z.number().int().nonnegative(),
+      z.number().int().nonnegative(),
+      z.union([z.literal(0), z.literal(1)]),
+      z.union([z.literal(0), z.literal(1)]),
+    ]),
+  ),
+]);
+
+export type PerformanceShareWireV2 = z.infer<typeof PerformanceShareWireV2Schema>;

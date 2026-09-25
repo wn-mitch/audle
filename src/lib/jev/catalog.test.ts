@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ROLES, challengeForDate } from '../domain/challenge';
-import { SOURCE_LOOP_TICKS, TICKS_PER_BAR, type CompositionV1 } from '../domain/model';
+import { ROLES, challengeForDate, firstPadFor } from '../domain/challenge';
+import { DEFAULT_SOURCE_TICKS, TICKS_PER_BAR, type CompositionV1 } from '../domain/model';
 import { createDailyDraft, fillTracks } from '../domain/operations';
 import { ROLE_PATTERNS, expandPattern, optionsFor } from './catalog';
 
@@ -9,11 +9,11 @@ const BAR_COUNTS: CompositionV1['bars'][] = [1, 2, 3, 4];
 describe('Jev pattern catalog', () => {
   it('expands every pattern at every loop length into a valid composition', () => {
     for (const bars of BAR_COUNTS) {
-      ROLES.forEach((role, index) => {
+      ROLES.forEach((role) => {
         for (const name of Object.keys(ROLE_PATTERNS[role].patterns)) {
           const composition = createDailyDraft(challengeForDate('2026-08-12'), bars);
           const result = fillTracks(composition, {
-            [`track-${index}`]: expandPattern(role, name, bars),
+            [`track-${firstPadFor(role)}`]: expandPattern(role, name, bars),
           });
           expect(result.ok, `${role}/${name} at ${bars} bars`).toBe(true);
         }
@@ -24,11 +24,11 @@ describe('Jev pattern catalog', () => {
   it('keeps loop clips in phase with the two-bar source loop', () => {
     const clips = expandPattern('chord', 'full', 4);
     expect(clips).toEqual([
-      { kind: 'loop', startTick: 0, lengthTicks: SOURCE_LOOP_TICKS, sourceOffsetTick: 0 },
+      { kind: 'loop', startTick: 0, lengthTicks: DEFAULT_SOURCE_TICKS, sourceOffsetTick: 0 },
       {
         kind: 'loop',
-        startTick: SOURCE_LOOP_TICKS,
-        lengthTicks: SOURCE_LOOP_TICKS,
+        startTick: DEFAULT_SOURCE_TICKS,
+        lengthTicks: DEFAULT_SOURCE_TICKS,
         sourceOffsetTick: 0,
       },
     ]);

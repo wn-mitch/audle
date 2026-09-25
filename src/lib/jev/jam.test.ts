@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { starterForChallenge } from '../data/examples';
+import { sampleById } from '../data/samples';
 import { challengeForDate } from '../domain/challenge';
 import { createDailyDraft, fillTracks } from '../domain/operations';
 import {
@@ -39,17 +40,25 @@ describe('jam requests', () => {
     const composition = starterForChallenge(challenge);
     const request = jamRequestFor(composition, 'eerie and slow')!;
     expect(request.tracks.filter((track) => track.fill).map((track) => track.index)).toEqual([
-      1, 3, 4, 5, 7,
+      1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15,
     ]);
     const payload = buildJevPayload(request);
     expect(Object.keys(payload.questions)).toEqual([
       'track-1',
+      'track-2',
       'track-3',
-      'track-4',
       'track-5',
+      'track-6',
       'track-7',
+      'track-8',
+      'track-9',
+      'track-10',
+      'track-11',
+      'track-13',
+      'track-14',
+      'track-15',
     ]);
-    expect(payload.questions['track-4']!.criteria).toHaveProperty('four');
+    expect(payload.questions['track-8']!.criteria).toHaveProperty('four');
     expect(payload.state.already_playing).toContain('plays in bars 1, 2');
     expect(payload.state.already_playing).toContain('4 hits, about 2 per bar');
     expect(payload.state.vibe).toBe('eerie and slow');
@@ -60,10 +69,10 @@ describe('jam requests', () => {
     const full = fillTracks(
       composition,
       Object.fromEntries(
-        composition.tracks.map((track, index) => [
+        composition.tracks.map((track) => [
           track.id,
           [
-            index < 4
+            sampleById(track.sampleId)?.kind === 'loop'
               ? { kind: 'loop' as const, startTick: 0, lengthTicks: 384, sourceOffsetTick: 0 }
               : { kind: 'hit' as const, startTick: 0, ratchet: 1 as const },
           ],
@@ -80,15 +89,15 @@ describe('jam requests', () => {
       composition,
       {
         'track-0': { full: 1 },
-        'track-4': { polka: 0.9, four: 0.1 },
-        'track-5': { backbeat: 1 },
-        'track-7': { rest: 1 },
+        'track-8': { polka: 0.9, four: 0.1 },
+        'track-10': { backbeat: 1 },
+        'track-14': { rest: 1 },
         'track-9': { full: 1 },
       },
       sequence(0, 0, 0),
     );
-    expect(result.picks).toEqual({ 'track-4': 'four', 'track-5': 'backbeat', 'track-7': 'rest' });
-    expect(Object.keys(result.placements)).toEqual(['track-4', 'track-5']);
+    expect(result.picks).toEqual({ 'track-8': 'four', 'track-10': 'backbeat', 'track-14': 'rest' });
+    expect(Object.keys(result.placements)).toEqual(['track-8', 'track-10']);
   });
 
   it('reads probabilities out of a TypeSafe response', () => {
@@ -96,10 +105,10 @@ describe('jam requests', () => {
       parseJevAnswers({
         model: 'jev-1.13.0',
         answers: {
-          'track-4': { type: 'choice', choice: 'four', probabilities: { four: 0.9, rest: 0.1 } },
+          'track-8': { type: 'choice', choice: 'four', probabilities: { four: 0.9, rest: 0.1 } },
         },
       }),
-    ).toEqual({ 'track-4': { four: 0.9, rest: 0.1 } });
+    ).toEqual({ 'track-8': { four: 0.9, rest: 0.1 } });
     expect(parseJevAnswers({ error: 'nope' })).toBeUndefined();
     expect(parseJevAnswers(undefined)).toBeUndefined();
   });
@@ -115,19 +124,19 @@ describe('handleJevRequest', () => {
     const fetchImpl = (async (url: string, init: RequestInit) => {
       calls.push({ url, init });
       return Response.json({
-        answers: { 'track-4': { choice: 'four', probabilities: { four: 1 } } },
+        answers: { 'track-8': { choice: 'four', probabilities: { four: 1 } } },
         usage: { input_tokens: 1 },
       });
     }) as unknown as typeof fetch;
     const response = await handleJevRequest(post(jam()), 'secret', fetchImpl);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ answers: { 'track-4': { four: 1 } } });
+    expect(await response.json()).toEqual({ answers: { 'track-8': { four: 1 } } });
     expect(calls[0]!.url).toBe('https://api.typesafe.ai/v1/systemone');
     expect((calls[0]!.init.headers as Record<string, string>).Authorization).toBe('Bearer secret');
     const sent = JSON.parse(calls[0]!.init.body as string);
     expect(sent.model).toBe('jev-1.13.0');
     expect(sent.state.vibe).toBe('bright');
-    expect(Object.keys(sent.questions)).toContain('track-4');
+    expect(Object.keys(sent.questions)).toContain('track-8');
   });
 
   it('refuses without a key, with bad bodies, and for arbitrary questions', async () => {
@@ -136,7 +145,7 @@ describe('handleJevRequest', () => {
     }) as unknown as typeof fetch;
     expect((await handleJevRequest(post(jam()), undefined, never)).status).toBe(503);
     expect((await handleJevRequest(post('not json'), 'k', never)).status).toBe(400);
-    expect((await handleJevRequest(post('x'.repeat(5000)), 'k', never)).status).toBe(413);
+    expect((await handleJevRequest(post('x'.repeat(13_000)), 'k', never)).status).toBe(413);
     const smuggled = { ...JSON.parse(jam()), questions: { q: { type: 'choice' } } };
     expect((await handleJevRequest(post(JSON.stringify(smuggled)), 'k', never)).status).toBe(400);
     const longVibe = { ...JSON.parse(jam()), vibe: 'v'.repeat(81) };

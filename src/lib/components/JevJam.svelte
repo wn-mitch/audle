@@ -1,10 +1,11 @@
 <script lang="ts">
   import type { EditorState } from '../state/editor.svelte';
+  import { SOURCES_PER_DAY } from '../domain/model';
 
   let { editor }: { editor: EditorState } = $props();
   let vibe = $state('');
   const hasEmptyTrack = $derived(
-    editor.composition.tracks.slice(0, 8).some((track) => track.clips.length === 0),
+    editor.composition.tracks.slice(0, SOURCES_PER_DAY).some((track) => track.clips.length === 0),
   );
 </script>
 

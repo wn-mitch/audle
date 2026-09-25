@@ -49,6 +49,32 @@ test('a Play tap starts audible music and a second tap switches it off on a bar'
   expect(clips).toBeGreaterThan(0);
 });
 
+test('offers every pattern feel beneath the play field and applies the one you tap', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.locator('.sound-object').first().click();
+
+  const feels = page.getByRole('group', { name: 'Pattern feel' }).getByRole('button');
+  await expect(feels).toHaveCount(6);
+
+  const steps = page.locator('.pattern-strip .steps span');
+  await expect(steps).toHaveCount(16);
+
+  for (const feel of ['sparse', 'offbeat', 'dense', 'halftime', 'moving', 'steady']) {
+    await page.getByRole('button', { name: feel, exact: true }).click();
+    // The strip lights the feel you tapped, so a collision between two feels shows up here.
+    await expect(page.getByRole('button', { name: feel, exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    // A feel has to change what you hear, not only which button is lit.
+    await expect(page.locator('.pattern-strip .steps .hit')).toHaveCount(
+      feel === 'sparse' ? 8 : 16,
+    );
+  }
+});
+
 test('Finish exports a non-silent WAV from the live loop', async ({ page }) => {
   await page.goto('/');
   await page.locator('.sound-object').first().click();

@@ -2,6 +2,7 @@
   import { renderWav } from '../audio/export';
   import type { EditorState } from '../state/editor.svelte';
   import type { PerformanceV1 } from '../domain/performance';
+  import { SOURCES_PER_DAY } from '../domain/model';
 
   let {
     editor,
@@ -63,9 +64,9 @@
         {editor.composition.bars === 1 ? 'bar' : 'bars'}. Ready to play, share or download.
       </p>
       <div class="meter" aria-hidden="true">
-        {#each editor.composition.tracks.slice(0, 8) as track, index (track.id)}<span
+        {#each editor.composition.tracks.slice(0, SOURCES_PER_DAY) as track, index (track.id)}<span
             class:lit={track.clips.length > 0 && !track.controls.muted}
-            style={`--height:${[54, 76, 38, 92, 65, 43, 82, 58][index]}%`}
+            style={`--height:${[54, 76, 38, 92, 65, 43, 82, 58, 47, 88, 60, 35, 71, 52, 84, 45][index]}%`}
           ></span>{/each}
       </div>
       <div class="card-actions">

@@ -1,10 +1,11 @@
 import { Unzlib, strFromU8, strToU8, zlibSync } from 'fflate';
 import { PITCH_CLASSES, type Clip, type CompositionV1, type Track } from './model';
 import {
-  PerformanceShareWireSchema,
-  ShareWireSchema,
+  PerformanceShareWireV2Schema,
+  ShareWireV2Schema,
   type PerformanceShareWire,
-  type ShareWire,
+  type PerformanceShareWireV2,
+  type ShareWireV2,
   validateComposition,
 } from './schema';
 import { validatePerformance, type PerformanceV1, type SharedAudle } from './performance';
@@ -15,6 +16,7 @@ const MAX_INFLATED_LENGTH = 65_536;
 
 export type ShareError =
   | 'too-long'
+  | 'too-old'
   | 'invalid-base64'
   | 'invalid-compression'
   | 'too-large'
@@ -56,7 +58,7 @@ const clipComparator = (left: Clip, right: Clip): number => {
   return 0;
 };
 
-const clipToWire = (clip: Clip): ShareWire[3][number][8][number] =>
+const clipToWire = (clip: Clip): ShareWireV2[3][number][8][number] =>
   clip.kind === 'loop'
     ? [0, clip.startTick, clip.lengthTicks, clip.sourceOffsetTick]
     : [1, clip.startTick, clip.ratchet];
@@ -64,7 +66,7 @@ const clipToWire = (clip: Clip): ShareWire[3][number][8][number] =>
 const trackToWire = (
   track: Track,
   sampleIds: CompositionV1['challenge']['sampleIds'],
-): ShareWire[3][number] => {
+): ShareWireV2[3][number] => {
   const sampleIndex = sampleIds.indexOf(track.sampleId);
   if (sampleIndex < 0) throw new ShareCodecError('invalid-composition');
 
@@ -81,13 +83,13 @@ const trackToWire = (
   ];
 };
 
-export const compositionToWire = (composition: CompositionV1): ShareWire => {
+export const compositionToWire = (composition: CompositionV1): ShareWireV2 => {
   const validated = validateComposition(composition);
   if (!validated) throw new ShareCodecError('invalid-composition');
 
   const rootIndex = PITCH_CLASSES.indexOf(validated.challenge.key.root);
   return [
-    1,
+    3,
     [
       1,
       validated.challenge.date,
@@ -102,8 +104,14 @@ export const compositionToWire = (composition: CompositionV1): ShareWire => {
   ];
 };
 
-const wireToComposition = (wire: ShareWire): CompositionV1 | undefined => {
-  const [, challengeTuple, bars, wireTracks] = wire;
+/** The compressed challenge tuple carried by a sixteen-source link. */
+type WireChallenge = ShareWireV2[1];
+
+const wireToComposition = (
+  challengeTuple: WireChallenge,
+  bars: CompositionV1['bars'],
+  wireTracks: ShareWireV2[3],
+): CompositionV1 | undefined => {
   const [, date, seed, bpm, rootIndex, modeBit, sampleIds] = challengeTuple;
   const root = PITCH_CLASSES[rootIndex];
   if (!root) return undefined;
@@ -192,7 +200,7 @@ const inflatePayload = (compressed: Uint8Array): string => {
   return strFromU8(inflated);
 };
 
-const encodeWire = (wire: ShareWire | PerformanceShareWire): string => {
+const encodeWire = (wire: ShareWireV2 | PerformanceShareWire | PerformanceShareWireV2): string => {
   const encoded = asBase64Url(zlibSync(strToU8(JSON.stringify(wire))));
   if (encoded.length > MAX_FRAGMENT_LENGTH) throw new ShareCodecError('too-long');
   return encoded;
@@ -204,8 +212,8 @@ export const encodeShare = (composition: CompositionV1): string =>
 export const encodePerformanceShare = (performance: PerformanceV1): string => {
   const valid = validatePerformance(performance);
   if (!valid) throw new ShareCodecError('invalid-composition');
-  const wire: PerformanceShareWire = [
-    2,
+  const wire: PerformanceShareWireV2 = [
+    4,
     compositionToWire(valid.composition),
     valid.durationTicks,
     valid.events.map((event) => [
@@ -218,6 +226,26 @@ export const encodePerformanceShare = (performance: PerformanceV1): string => {
   return encodeWire(wire);
 };
 
+/** Rebuilds a take from a decoded performance wire, whichever link format carried it. */
+const performanceFromWire = (
+  composition: CompositionV1,
+  durationTicks: number,
+  events: PerformanceShareWireV2[3],
+): SharedAudle | undefined => {
+  const performance = validatePerformance({
+    version: 1,
+    composition,
+    durationTicks,
+    events: events.map(([tick, trackIndex, kind, value]) => ({
+      tick,
+      trackId: composition.tracks[trackIndex]?.id,
+      kind: kind === 0 ? 'mute' : 'solo',
+      value: value === 1,
+    })),
+  });
+  return performance ? { composition, performance } : undefined;
+};
+
 export const decodeShared = (payload: string): ShareResult<SharedAudle> => {
   if (payload.length === 0 || payload.length > MAX_FRAGMENT_LENGTH)
     return { ok: false, error: 'too-long' };
@@ -226,33 +254,29 @@ export const decodeShared = (payload: string): ShareResult<SharedAudle> => {
     const compressed = fromBase64Url(payload);
     const parsedJson: unknown = JSON.parse(inflatePayload(compressed));
     const version = Array.isArray(parsedJson) ? parsedJson[0] : undefined;
-    if (version === 1) {
-      const wire = ShareWireSchema.safeParse(parsedJson);
+
+    // Formats 1 and 2 pin the eight-source kit a day used to deal. The daily deal now names
+    // sixteen sources and must match its date exactly, so those links cannot be rebuilt.
+    if (version === 1 || version === 2) return { ok: false, error: 'too-old' };
+
+    if (version === 3) {
+      const wire = ShareWireV2Schema.safeParse(parsedJson);
       if (!wire.success) return { ok: false, error: 'invalid-payload' };
-      const composition = wireToComposition(wire.data);
+      const [, challenge, bars, tracks] = wire.data;
+      const composition = wireToComposition(challenge, bars, tracks);
       return composition
         ? { ok: true, value: { composition } }
         : { ok: false, error: 'invalid-composition' };
     }
-    const wire = PerformanceShareWireSchema.safeParse(parsedJson);
+
+    const wire = PerformanceShareWireV2Schema.safeParse(parsedJson);
     if (!wire.success) return { ok: false, error: 'invalid-payload' };
     const [, compositionWire, durationTicks, events] = wire.data;
-    const composition = wireToComposition(compositionWire);
+    const [, challenge, bars, tracks] = compositionWire;
+    const composition = wireToComposition(challenge, bars, tracks);
     if (!composition) return { ok: false, error: 'invalid-composition' };
-    const performance = validatePerformance({
-      version: 1,
-      composition,
-      durationTicks,
-      events: events.map(([tick, trackIndex, kind, value]) => ({
-        tick,
-        trackId: composition.tracks[trackIndex]?.id,
-        kind: kind === 0 ? 'mute' : 'solo',
-        value: value === 1,
-      })),
-    });
-    return performance
-      ? { ok: true, value: { composition, performance } }
-      : { ok: false, error: 'invalid-composition' };
+    const shared = performanceFromWire(composition, durationTicks, events);
+    return shared ? { ok: true, value: shared } : { ok: false, error: 'invalid-composition' };
   } catch (error) {
     if (error instanceof ShareCodecError) return { ok: false, error: error.code };
     return { ok: false, error: 'invalid-payload' };

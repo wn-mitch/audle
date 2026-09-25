@@ -16,7 +16,7 @@ import {
   splitSelectedAt,
   type OperationResult,
 } from './operations';
-import { TICKS_PER_BAR, type CompositionV1 } from './model';
+import { BASE_TRACKS, MAX_CLIPS, MAX_TRACKS, TICKS_PER_BAR, type CompositionV1 } from './model';
 
 const expectSuccess = (result: OperationResult): CompositionV1 => {
   if (!result.ok) throw new Error(result.reason);
@@ -36,10 +36,10 @@ const loopClip = (id: string, startTick: number, lengthTicks: number, sourceOffs
 describe('composition operations', () => {
   it('splits loops without changing their scheduled coverage', () => {
     const composition = starter();
-    composition.tracks[2]!.clips.push(loopClip('chord-a', 0, 768, 0));
+    composition.tracks[4]!.clips.push(loopClip('chord-a', 0, 768, 0));
 
     const result = expectSuccess(splitSelectedAt(composition, ['chord-a'], 384));
-    const clips = result.tracks[2]!.clips;
+    const clips = result.tracks[4]!.clips;
     expect(clips).toHaveLength(2);
     expect(
       clips.map(
@@ -59,16 +59,16 @@ describe('composition operations', () => {
   it('increments same-cell recording through a four-strike roll', () => {
     let composition = starter();
     for (let count = 0; count < 5; count += 1)
-      composition = expectSuccess(recordHit(composition, 'track-6', 17));
+      composition = expectSuccess(recordHit(composition, 'track-12', 17));
 
-    expect(composition.tracks[6]!.clips).toEqual([
+    expect(composition.tracks[12]!.clips).toEqual([
       { id: 'clip-1', kind: 'hit', startTick: 24, ratchet: 4 },
     ]);
-    composition = expectSuccess(recordHit(composition, 'track-6', 48));
-    const ids = composition.tracks[6]!.clips.map((clip) => clip.id);
+    composition = expectSuccess(recordHit(composition, 'track-12', 48));
+    const ids = composition.tracks[12]!.clips.map((clip) => clip.id);
     composition = expectSuccess(setSelectedRatchet(composition, ids, 3));
     expect(
-      composition.tracks[6]!.clips.every((clip) => clip.kind === 'hit' && clip.ratchet === 3),
+      composition.tracks[12]!.clips.every((clip) => clip.kind === 'hit' && clip.ratchet === 3),
     ).toBe(true);
   });
 
@@ -76,11 +76,11 @@ describe('composition operations', () => {
     const composition = starter();
     composition.bars = 4;
     composition.tracks[0]!.clips.push(loopClip('beat-a', 0, 384));
-    composition.tracks[1]!.clips.push(loopClip('bass-a', 24, 360));
+    composition.tracks[2]!.clips.push(loopClip('bass-a', 24, 360));
 
     const repeated = expectSuccess(repeatSelectionToEnd(composition, ['beat-a', 'bass-a']));
     expect(repeated.tracks[0]!.clips.map((clip) => clip.startTick)).toEqual([0, 384, 768, 1152]);
-    expect(repeated.tracks[1]!.clips.map((clip) => clip.startTick)).toEqual([24, 408, 792, 1176]);
+    expect(repeated.tracks[2]!.clips.map((clip) => clip.startTick)).toEqual([24, 408, 792, 1176]);
 
     const colliding = starter();
     colliding.bars = 4;
@@ -92,9 +92,9 @@ describe('composition operations', () => {
 
   it('keeps cloned voices independent and enforces layer limits', () => {
     const composition = starter();
-    composition.tracks[2]!.clips.push(loopClip('chord-a', 0, 384));
-    const cloned = expectSuccess(cloneSelectedVoice(composition, 'track-2'));
-    const clone = cloned.tracks[8]!;
+    composition.tracks[4]!.clips.push(loopClip('chord-a', 0, 384));
+    const cloned = expectSuccess(cloneSelectedVoice(composition, 'track-4'));
+    const clone = cloned.tracks.at(-1)!;
     const tweaked = expectSuccess(
       setTrackControls(cloned, clone.id, {
         gainDb: -6,
@@ -108,28 +108,28 @@ describe('composition operations', () => {
     const moved = expectSuccess(moveSelection(tweaked, [clone.clips[0]!.id], 24));
     const renamed = expectSuccess(renameTrack(moved, clone.id, 'Bright layer'));
 
-    expect(renamed.tracks[2]).toEqual(composition.tracks[2]);
-    expect(renamed.tracks[8]).toMatchObject({
+    expect(renamed.tracks[4]).toEqual(composition.tracks[4]);
+    expect(renamed.tracks.at(-1)).toMatchObject({
       label: 'Bright layer',
       controls: { tuneSemitones: 4, cutoffHz: 800 },
     });
-    expect(renamed.tracks[8]!.clips[0]).toMatchObject({ startTick: 24 });
-    expect(expectSuccess(deleteLayer(renamed, clone.id)).tracks).toHaveLength(8);
+    expect(renamed.tracks.at(-1)!.clips[0]).toMatchObject({ startTick: 24 });
+    expect(expectSuccess(deleteLayer(renamed, clone.id)).tracks).toHaveLength(BASE_TRACKS);
 
     let maximum = starter();
     for (let count = 0; count < 8; count += 1)
-      maximum = expectSuccess(cloneSelectedVoice(maximum, 'track-2'));
-    expect(cloneSelectedVoice(maximum, 'track-2')).toEqual({
+      maximum = expectSuccess(cloneSelectedVoice(maximum, 'track-4'));
+    expect(cloneSelectedVoice(maximum, 'track-4')).toEqual({
       ok: false,
-      reason: 'This Audle already has 16 voices.',
+      reason: `This Audle already has ${MAX_TRACKS} voices.`,
     });
 
     const capped = starter();
     capped.bars = 4;
-    capped.tracks[2]!.clips.push(loopClip('copy-me', 0, 24));
-    for (let trackIndex = 4; trackIndex < 8; trackIndex += 1) {
+    capped.tracks[4]!.clips.push(loopClip('copy-me', 0, 24));
+    for (let trackIndex = 8; trackIndex < 16; trackIndex += 1) {
       for (let tick = 0; tick < 1536; tick += 24) {
-        if (trackIndex === 4 && tick === 1512) continue;
+        if (trackIndex === 8 && tick === 1512) continue;
         capped.tracks[trackIndex]!.clips.push({
           id: `hit-${trackIndex}-${tick}`,
           kind: 'hit',
@@ -138,17 +138,17 @@ describe('composition operations', () => {
         });
       }
     }
-    expect(cloneSelectedVoice(capped, 'track-2')).toEqual({
+    expect(cloneSelectedVoice(capped, 'track-8')).toEqual({
       ok: false,
-      reason: 'That layer would exceed the 256-clip limit.',
+      reason: `That layer would exceed the ${MAX_CLIPS}-clip limit.`,
     });
   });
 
   it('trims or removes clips when shortening the loop', () => {
     const composition = starter();
     composition.bars = 4;
-    composition.tracks[2]!.clips.push(loopClip('crossing', TICKS_PER_BAR * 2, TICKS_PER_BAR * 2));
-    composition.tracks[6]!.clips.push({
+    composition.tracks[4]!.clips.push(loopClip('crossing', TICKS_PER_BAR * 2, TICKS_PER_BAR * 2));
+    composition.tracks[12]!.clips.push({
       id: 'out',
       kind: 'hit',
       startTick: TICKS_PER_BAR * 3,
@@ -159,8 +159,8 @@ describe('composition operations', () => {
     expect(shortened.ok).toBe(true);
     if (!shortened.ok) return;
     expect(shortened.changed).toBe(2);
-    expect(shortened.value.tracks[2]!.clips[0]).toMatchObject({ lengthTicks: TICKS_PER_BAR });
-    expect(shortened.value.tracks[6]!.clips).toHaveLength(0);
+    expect(shortened.value.tracks[4]!.clips[0]).toMatchObject({ lengthTicks: TICKS_PER_BAR });
+    expect(shortened.value.tracks[12]!.clips).toHaveLength(0);
   });
 
   it('places loops at the start of the clicked bar and toggles them off', () => {
@@ -177,22 +177,22 @@ describe('composition operations', () => {
     expect(
       expectSuccess(placeLoop(placed, 'track-0', TICKS_PER_BAR * 2)).tracks[0]!.clips,
     ).toHaveLength(0);
-    expect(placeLoop(composition, 'track-4', 0)).toMatchObject({ ok: false });
+    expect(placeLoop(composition, 'track-8', 0)).toMatchObject({ ok: false });
   });
 
   it('fills tracks in one validated edit with fresh clip ids', () => {
     const composition = starter();
-    composition.tracks[4]!.clips.push({ id: 'clip-1', kind: 'hit', startTick: 0, ratchet: 1 });
+    composition.tracks[8]!.clips.push({ id: 'clip-1', kind: 'hit', startTick: 0, ratchet: 1 });
     const filled = expectSuccess(
       fillTracks(composition, {
-        'track-4': [{ kind: 'hit', startTick: 96, ratchet: 1 }],
-        'track-6': [{ kind: 'hit', startTick: 0, ratchet: 2 }],
+        'track-8': [{ kind: 'hit', startTick: 96, ratchet: 1 }],
+        'track-12': [{ kind: 'hit', startTick: 0, ratchet: 2 }],
         missing: [{ kind: 'hit', startTick: 0, ratchet: 1 }],
       }),
     );
     const ids = filled.tracks.flatMap((track) => track.clips.map((clip) => clip.id));
     expect(new Set(ids).size).toBe(ids.length);
-    expect(filled.tracks[4]!.clips).toHaveLength(2);
+    expect(filled.tracks[8]!.clips).toHaveLength(2);
     expect(
       fillTracks(composition, { 'track-0': [{ kind: 'hit', startTick: 0, ratchet: 1 }] }),
     ).toMatchObject({

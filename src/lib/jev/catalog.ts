@@ -1,5 +1,5 @@
 import {
-  SOURCE_LOOP_TICKS,
+  DEFAULT_SOURCE_TICKS,
   TICKS_PER_BAR,
   TICKS_PER_SIXTEENTH,
   type CompositionV1,
@@ -176,7 +176,7 @@ export const ROLE_PATTERNS: Readonly<Record<SampleRole, RolePatterns>> = {
   },
 };
 
-const BAR_OFFSET_TICKS = TICKS_PER_BAR % SOURCE_LOOP_TICKS;
+const BAR_OFFSET_TICKS = TICKS_PER_BAR % DEFAULT_SOURCE_TICKS;
 
 /**
  * Converts active bars into loop clips that stay in phase with the two-bar source loop: bar `b`
@@ -187,7 +187,7 @@ const loopClipsForBars = (activeBars: readonly number[]): ClipPlacement[] => {
   const sorted = [...new Set(activeBars)].sort((a, b) => a - b);
   for (const bar of sorted) {
     const startTick = bar * TICKS_PER_BAR;
-    const sourceOffsetTick = (bar * BAR_OFFSET_TICKS) % SOURCE_LOOP_TICKS;
+    const sourceOffsetTick = (bar * BAR_OFFSET_TICKS) % DEFAULT_SOURCE_TICKS;
     const previous = clips.at(-1);
     const contiguous =
       previous?.kind === 'loop' &&

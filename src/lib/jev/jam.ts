@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { sampleById } from '../data/samples';
-import { ROLES } from '../domain/challenge';
+import { roleForSource } from '../domain/challenge';
 import {
   BASE_TRACKS,
   PITCH_CLASSES,
@@ -56,10 +56,12 @@ const INSTRUCTIONS: Record<string, string> = {
 
 /** Jev's state and one choice question per track to fill. */
 export const buildJevPayload = (request: JamRequest) => {
-  const kit = request.tracks.map((track) => `${track.label} (${ROLES[track.index]})`).join(', ');
+  const kit = request.tracks
+    .map((track) => `${track.label} (${roleForSource(track.index)})`)
+    .join(', ');
   const playing = request.tracks
     .filter((track) => !track.fill && track.summary)
-    .map((track) => `${track.label} (${ROLES[track.index]}): ${track.summary}`);
+    .map((track) => `${track.label} (${roleForSource(track.index)}): ${track.summary}`);
   const state = {
     piece: `A ${request.bars}-bar repeating loop at ${request.bpm} BPM in ${request.key.root} ${request.key.mode}. Today's kit: ${kit}.`,
     already_playing: playing.join('\n') || 'Nothing yet: every part is being chosen now.',
@@ -69,7 +71,7 @@ export const buildJevPayload = (request: JamRequest) => {
     request.tracks
       .filter((track) => track.fill)
       .map((track) => {
-        const role = ROLES[track.index]!;
+        const role = roleForSource(track.index);
         return [
           questionKey(track.index),
           {

@@ -2,7 +2,7 @@ import { JAM_REQUEST_SCHEMA, buildJevPayload, parseJevAnswers } from './jam';
 
 export const TYPESAFE_URL = 'https://api.typesafe.ai/v1/systemone';
 export const JEV_MODEL = 'jev-1.13.0';
-const MAX_BODY_BYTES = 4096;
+const MAX_BODY_BYTES = 12_288;
 const UPSTREAM_TIMEOUT_MS = 10_000;
 
 const json = (status: number, body: unknown) =>

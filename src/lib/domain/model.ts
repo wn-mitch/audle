@@ -1,10 +1,17 @@
 export const TICKS_PER_QUARTER = 96;
 export const TICKS_PER_BAR = TICKS_PER_QUARTER * 4;
 export const TICKS_PER_SIXTEENTH = TICKS_PER_QUARTER / 4;
-export const SOURCE_LOOP_TICKS = TICKS_PER_BAR * 2;
-export const MAX_TRACKS = 16;
-export const BASE_TRACKS = 8;
-export const MAX_CLIPS = 256;
+/** Source loops the patterns assume when a sample does not declare its own length. */
+export const DEFAULT_SOURCE_BARS = 2;
+/** The longest source loop patterns may read from; longer sources are only played part way. */
+export const MAX_SOURCE_BARS = 4;
+export const MAX_SOURCE_TICKS = MAX_SOURCE_BARS * TICKS_PER_BAR;
+export const DEFAULT_SOURCE_TICKS = DEFAULT_SOURCE_BARS * TICKS_PER_BAR;
+export const SOURCES_PER_ROLE = 2;
+export const SOURCES_PER_DAY = 16;
+export const MAX_TRACKS = 24;
+export const BASE_TRACKS = SOURCES_PER_DAY;
+export const MAX_CLIPS = 512;
 
 export const PITCH_CLASSES = [
   'C',
@@ -35,7 +42,8 @@ export interface SampleAsset {
   sourceBpm?: number;
   rootPitchClass?: PitchClass;
   mode?: Mode;
-  bars?: 1 | 2;
+  /** How many bars the source file holds, which bounds how far patterns may read into it. */
+  bars?: 1 | 2 | 4;
 }
 
 export interface ChallengeSnapshot {
@@ -44,7 +52,25 @@ export interface ChallengeSnapshot {
   seed: number;
   bpm: number;
   key: { root: PitchClass; mode: Mode };
-  sampleIds: [string, string, string, string, string, string, string, string];
+  /** Two sounds per role, in `ROLES` order. */
+  sampleIds: [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
 }
 
 export interface TrackControls {
@@ -87,6 +113,10 @@ export interface CompositionV1 {
   bars: 1 | 2 | 3 | 4;
   tracks: Track[];
 }
+
+/** How many ticks of source a sample holds, which bounds how far a loop clip may read into it. */
+export const sourceTicks = (sample: Pick<SampleAsset, 'bars'> | undefined): number =>
+  (sample?.bars ?? DEFAULT_SOURCE_BARS) * TICKS_PER_BAR;
 
 export const DEFAULT_TRACK_CONTROLS: TrackControls = {
   gainDb: 0,

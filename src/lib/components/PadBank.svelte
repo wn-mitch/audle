@@ -6,7 +6,7 @@
   let { challenge, editor }: { challenge: ChallengeSnapshot; editor: EditorState } = $props();
 </script>
 
-<section aria-label="Today’s eight sounds" class="pad-bank" aria-busy={editor.loading}>
+<section aria-label="Today’s sounds" class="pad-bank" aria-busy={editor.loading}>
   <header>
     <p>Today’s source deck</p>
     <span>{editor.loading ? 'Decoding sounds' : 'Tap any sound'}</span>

@@ -1,34 +1,57 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { animate } from 'animejs';
-  import type { ChallengeSnapshot } from '../domain/model';
-  import { LIVE_PATTERNS } from '../domain/live';
+  import { LIVE_PATTERNS, type LivePattern } from '../domain/live';
   import { sampleById } from '../data/samples';
+  import { SOURCES_PER_DAY } from '../domain/model';
   import type { EditorState } from '../state/editor.svelte';
   const STEPS = Array.from({ length: 16 }, (_, step) => step);
+  const MARK_STEPS = Array.from({ length: 8 }, (_, step) => step);
+
+  /** The eighth-note positions each feel plays, drawn as the mark on its button. */
+  const PATTERN_MARKS: Record<LivePattern, readonly number[]> = {
+    steady: [0, 2, 4, 6],
+    sparse: [0],
+    moving: [0, 3, 5],
+    offbeat: [1, 3, 5, 7],
+    dense: [0, 1, 2, 3, 4, 5, 6, 7],
+    halftime: [0, 4],
+  };
+
+  /** One hue per role, so a role's two pads read as a family. */
+  const PAD_HUES = [166, 272, 38, 215, 17, 185, 317, 75];
 
   let {
-    challenge,
     editor,
     onArrange,
     onFinish,
   }: {
-    challenge: ChallengeSnapshot;
     editor: EditorState;
     onArrange: () => void;
     onFinish: () => void;
   } = $props();
   let stage: HTMLElement;
   let motionAllowed = false;
-  const tracks = $derived(editor.composition.tracks.slice(0, 8));
+  const tracks = $derived(editor.composition.tracks.slice(0, SOURCES_PER_DAY));
   const selected = $derived(
     editor.composition.tracks.find((track) => track.id === editor.selectedTrackId),
   );
-  const selectedIndex = $derived(tracks.findIndex((track) => track.id === editor.selectedTrackId));
   const activeCount = $derived(
     tracks.filter((track) => editor.liveStatus(track.id) === 'on').length,
   );
   const pattern = $derived(selected ? editor.livePattern(selected.id) : 'empty');
+  /** How many of the sixteen steps the selected sound fills, for the strip's text alternative. */
+  const litSteps = $derived(
+    STEPS.filter((step) =>
+      selected?.clips.some((clip) =>
+        clip.startTick <= step * 24
+          ? clip.kind === 'hit'
+            ? clip.startTick === step * 24
+            : clip.startTick + clip.lengthTicks > step * 24
+          : false,
+      ),
+    ).length,
+  );
   let lastBeat = -1;
 
   onMount(() => {
@@ -58,12 +81,7 @@
 
 <section class="play-world" aria-labelledby="play-title">
   <div class="intro">
-    <div class="eyebrow">
-      <span class="live-dot"></span> DAILY SOUND SYSTEM
-      <span class="issue">№ {challenge.date.slice(5).replace('-', '.')}</span>
-    </div>
     <h1 id="play-title">Make something<br /><em>move.</em></h1>
-    <p>Eight sounds. One loop. Tap a form to bring it in. Tap again to take it out.</p>
   </div>
 
   {#if editor.captureStatus !== 'idle'}
@@ -82,9 +100,7 @@
   {/if}
   <div class="stage-frame" bind:this={stage}>
     <div class="stage-topline">
-      <span>PLAY FIELD <b> / 08</b></span><span
-        >{activeCount.toString().padStart(2, '0')} LIVE <i class:lit={editor.playing}></i></span
-      >
+      <span>{activeCount.toString().padStart(2, '0')} LIVE <i class:lit={editor.playing}></i></span>
     </div>
     <div class="objects">
       {#each tracks as track, index (track.id)}
@@ -97,7 +113,7 @@
           class:selected={editor.selectedTrackId === track.id}
           class:pending={status.startsWith('queued')}
           data-active={status === 'on'}
-          style={`--hue:${[166, 272, 38, 215, 17, 185, 317, 75][index]};--delay:${index * 45}ms`}
+          style={`--hue:${PAD_HUES[index % PAD_HUES.length]};--delay:${index * 30}ms`}
           aria-label={`${sample?.label ?? track.label}, ${status === 'empty' ? 'add to loop' : status === 'off' ? 'off, turn on' : status === 'on' ? 'on, turn off' : 'queued for next bar'}`}
           aria-pressed={status === 'on'}
           disabled={editor.loading || !!editor.loadingError || editor.playingPerformance}
@@ -108,42 +124,29 @@
             <span class="object-role">{sample?.role}</span></span
           >
           <span class="glyph" aria-hidden="true">
-            {#if index === 0}<span class="shape rings"><i></i><i></i><i></i></span>
-            {:else if index === 1}<span class="shape coils"><i></i><i></i><i></i></span>
-            {:else if index === 2}<span class="shape prism"><i></i><i></i></span>
-            {:else if index === 3}<span class="shape wave"><i></i><i></i><i></i><i></i></span>
-            {:else if index === 4}<span class="shape spike"><i></i><i></i><i></i><i></i></span>
-            {:else if index === 5}<span class="shape bars"><i></i><i></i><i></i><i></i></span>
-            {:else if index === 6}<span class="shape orbit"><i></i><i></i><i></i></span>
+            {#if index % 8 === 0}<span class="shape rings"><i></i><i></i><i></i></span>
+            {:else if index % 8 === 1}<span class="shape coils"><i></i><i></i><i></i></span>
+            {:else if index % 8 === 2}<span class="shape prism"><i></i><i></i></span>
+            {:else if index % 8 === 3}<span class="shape wave"><i></i><i></i><i></i><i></i></span>
+            {:else if index % 8 === 4}<span class="shape spike"><i></i><i></i><i></i><i></i></span>
+            {:else if index % 8 === 5}<span class="shape bars"><i></i><i></i><i></i><i></i></span>
+            {:else if index % 8 === 6}<span class="shape orbit"><i></i><i></i><i></i></span>
             {:else}<span class="shape lattice"><i></i><i></i><i></i><i></i></span>{/if}
           </span>
           <span class="object-bottom"
-            ><strong>{sample?.label ?? track.label}</strong><span
-              >{status === 'on'
-                ? 'ACTIVE'
-                : status === 'empty'
-                  ? 'TAP TO ADD'
-                  : status.startsWith('queued')
-                    ? 'NEXT BAR'
-                    : 'STANDBY'}</span
-            ></span
+            ><strong>{sample?.label ?? track.label}</strong>{#if status.startsWith('queued')}<span
+                >NEXT BAR</span
+              >{/if}</span
           >
           <span class="object-meter" aria-hidden="true"></span>
         </button>
       {/each}
     </div>
-    <div class="stage-bottomline">
-      <span>INTERACTIVE SOUND OBJECTS</span><span
-        >{challenge.bpm} BPM <b>·</b> {challenge.key.root} {challenge.key.mode.toUpperCase()}</span
-      >
-    </div>
   </div>
 
   <section class="play-controls" aria-label="Live controls">
     <div class="control-heading">
-      <span class="overline">01 / SHAPE THE LOOP</span>
-      <h2>{selected ? selected.label : 'Select a sound'}</h2>
-      <p>{selected ? 'Choose a feel. Keep playing.' : 'Tap a sound above to start.'}</p>
+      <h2>{selected ? selected.label : 'Pick a sound'}</h2>
       {#if selected}
         <button
           class="solo-control"
@@ -168,8 +171,9 @@
           disabled={!selected || editor.captureStatus !== 'idle' || editor.playingPerformance}
           aria-pressed={pattern === option}
           onclick={() => selected && editor.chooseLivePattern(selected.id, option)}
-          ><span class="pattern-icon" aria-hidden="true"
-            >{option === 'steady' ? '▰ ▰ ▰ ▰' : option === 'sparse' ? '▰ · · ▰' : '▰ · ▰ ·'}</span
+          ><span class="pattern-mark" aria-hidden="true"
+            >{#each MARK_STEPS as step (step)}<i class:on={PATTERN_MARKS[option].includes(step)}
+              ></i>{/each}</span
           ><strong>{option}</strong></button
         >
       {/each}
@@ -229,10 +233,11 @@
         </fieldset>
       </details>
     {/if}
-    <div class="pattern-strip" aria-label="Selected sound pattern">
-      <span class="strip-label"
-        >{selectedIndex >= 0 ? `0${selectedIndex + 1}` : '––'} <b> / PATTERN</b></span
-      >
+    <div
+      class="pattern-strip"
+      role="img"
+      aria-label={`${selected?.label ?? 'No sound'} pattern: ${litSteps} of 16 steps`}
+    >
       <div class="steps">
         {#each STEPS as step (step)}<span
             class:hit={!!selected?.clips.some(
@@ -315,33 +320,13 @@
   .intro {
     margin-block-end: 28px;
   }
-  .eyebrow,
-  .overline,
   .stage-topline,
-  .stage-bottomline,
   .object-number,
-  .object-bottom span,
-  .strip-label {
+  .object-bottom span {
     font:
       700 0.69rem/1.3 ui-monospace,
       monospace;
     letter-spacing: 0.1em;
-  }
-  .eyebrow,
-  .overline {
-    color: #93d5bd;
-  }
-  .issue {
-    margin-inline-start: 20px;
-    color: var(--audle-text-dim);
-  }
-  .live-dot {
-    display: inline-block;
-    inline-size: 7px;
-    block-size: 7px;
-    margin-inline-end: 8px;
-    border-radius: 50%;
-    background: #81dfb1;
   }
   .intro h1 {
     margin: 14px 0 10px;
@@ -354,12 +339,6 @@
     color: #91e9c3;
     font-style: normal;
   }
-  .intro p {
-    max-inline-size: 440px;
-    color: var(--audle-text-muted);
-    line-height: 1.55;
-    margin: 18px 0 0;
-  }
   .stage-frame {
     overflow: hidden;
     position: relative;
@@ -369,24 +348,13 @@
       0 22px 80px #0006,
       inset 0 1px #ffffff18;
   }
-  .stage-topline,
-  .stage-bottomline {
+  .stage-topline {
     position: relative;
     display: flex;
-    justify-content: space-between;
-    padding: 18px 24px;
+    justify-content: flex-end;
+    padding: 14px 20px;
     color: #b4c7c6;
-  }
-  .stage-topline {
     border-bottom: 1px solid #38504d;
-  }
-  .stage-bottomline {
-    border-top: 1px solid #38504d;
-    font-size: 0.61rem;
-  }
-  .stage-topline b,
-  .stage-bottomline b {
-    color: #99b9ae;
   }
   .stage-topline i {
     display: inline-block;
@@ -402,9 +370,9 @@
   .objects {
     position: relative;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-    padding: 24px;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 10px;
+    padding: 20px;
   }
   .sound-object {
     position: relative;
@@ -413,8 +381,8 @@
     align-items: stretch;
     justify-content: space-between;
     min-inline-size: 0;
-    min-block-size: 215px;
-    padding: 15px;
+    min-block-size: 168px;
+    padding: 12px;
     overflow: hidden;
     border: 1px solid #334a4b;
     background: #1a292f;
@@ -466,10 +434,13 @@
     display: grid;
     place-items: center;
     inline-size: 100%;
-    block-size: 112px;
+    block-size: 76px;
     color: hsl(var(--hue) 65% 70%);
     opacity: 0.57;
     transform-origin: center;
+  }
+  .glyph .shape {
+    transform: scale(0.82);
   }
   .active .glyph {
     opacity: 1;
@@ -662,11 +633,6 @@
     font-size: clamp(1.5rem, 2.5vw, 2.3rem);
     letter-spacing: -0.05em;
   }
-  .control-heading p {
-    margin: 0;
-    color: var(--audle-text-muted);
-    font-size: 0.85rem;
-  }
   .patterns {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -694,12 +660,25 @@
     opacity: 0.45;
     cursor: not-allowed;
   }
-  .pattern-icon {
-    font:
-      700 0.76rem ui-monospace,
-      monospace;
-    color: #a3dfcb;
-    white-space: nowrap;
+  .pattern-mark {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 3px;
+    inline-size: 100%;
+    block-size: 12px;
+  }
+  .pattern-mark i {
+    block-size: 100%;
+    background: #25373a;
+    border: 1px solid #3b5250;
+  }
+  .pattern-mark i.on {
+    background: #739f94;
+    border-color: #94cdb9;
+  }
+  .patterns button.chosen .pattern-mark i.on {
+    background: #90e4bd;
+    border-color: #d6eec9;
   }
   .fine-tune {
     align-self: start;
@@ -752,14 +731,6 @@
     align-items: center;
     gap: 15px;
     min-inline-size: 0;
-  }
-  .strip-label {
-    flex: none;
-    color: #95c9b7;
-  }
-  .strip-label b {
-    color: #849f9b;
-    font-weight: 400;
   }
   .steps {
     display: grid;
@@ -819,26 +790,22 @@
       font-size: clamp(3.3rem, 13vw, 5.5rem);
     }
     .objects {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-      padding: 12px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      padding: 10px;
     }
     .sound-object {
-      min-block-size: 165px;
-      padding: 11px;
+      min-block-size: 118px;
+      padding: 8px;
     }
     .glyph {
-      block-size: 80px;
+      block-size: 42px;
     }
-    .shape {
-      transform: scale(0.72);
+    .glyph .shape {
+      transform: scale(0.46);
     }
-    .stage-topline,
-    .stage-bottomline {
+    .stage-topline {
       padding: 12px;
-    }
-    .stage-bottomline {
-      font-size: 0.51rem;
     }
     .play-controls {
       display: flex;
@@ -848,9 +815,6 @@
     .patterns button {
       min-block-size: 69px;
       padding: 9px;
-    }
-    .pattern-icon {
-      font-size: 0.6rem;
     }
     .pattern-strip {
       flex-direction: column;

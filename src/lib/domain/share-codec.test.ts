@@ -41,7 +41,8 @@ const encodedWire = (wire: unknown): string => {
 describe('share codec', () => {
   it('round-trips a maximal composition without serializing ephemeral IDs', async () => {
     const composition = baseComposition();
-    const hitTracks = composition.tracks.slice(4);
+    // The eight one-shot pads are the second source of each percussive role.
+    const hitTracks = composition.tracks.slice(8, 16);
     for (const [trackIndex, track] of hitTracks.entries()) {
       for (let tick = 0; tick < 1536; tick += 24) {
         track.clips.push({
@@ -74,21 +75,21 @@ describe('share codec', () => {
     expect(decoded.ok).toBe(true);
     if (!decoded.ok) return;
 
-    expect(decoded.value.tracks).toHaveLength(16);
-    expect(decoded.value.tracks.flatMap((track) => track.clips)).toHaveLength(256);
+    expect(decoded.value.tracks).toHaveLength(24);
+    expect(decoded.value.tracks.flatMap((track) => track.clips)).toHaveLength(512);
     expect(
       decoded.value.tracks
-        .slice(8)
+        .slice(16)
         .every((track) => track.sampleId === composition.challenge.sampleIds[2]),
     ).toBe(true);
     expect(decoded.value.tracks[0]?.id).toBe('track-0');
-    expect(decoded.value.tracks[4]?.clips[0]?.id).toBe('clip-4-0');
+    expect(decoded.value.tracks[8]?.clips[0]?.id).toBe('clip-8-0');
     expect(await fingerprintForComposition(decoded.value)).toBe(
       await fingerprintForComposition(composition),
     );
   });
 
-  it('preserves legacy links and replays performance events against reconstructed track IDs', () => {
+  it('refuses links from the eight-source format and replays takes otherwise', () => {
     const composition = baseComposition();
     composition.tracks[0]!.clips.push({
       id: 'original-loop',

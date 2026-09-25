@@ -4,7 +4,7 @@ import {
   DEFAULT_TRACK_CONTROLS,
   MAX_CLIPS,
   MAX_TRACKS,
-  SOURCE_LOOP_TICKS,
+  sourceTicks,
   TICKS_PER_BAR,
   TICKS_PER_QUARTER,
   TICKS_PER_SIXTEENTH,
@@ -129,7 +129,7 @@ export const splitSelectedAt = (
   const candidate = structuredClone(composition);
   const nextId = createIdAllocator(candidate);
   const replacements = new Map<string, Clip>();
-  for (const { clip } of selected) {
+  for (const { track, clip } of selected) {
     const loop = clip as LoopClip;
     const leftLength = playheadTick - loop.startTick;
     replacements.set(loop.id, {
@@ -145,7 +145,9 @@ export const splitSelectedAt = (
       kind: 'loop',
       startTick: playheadTick,
       lengthTicks: loop.lengthTicks - leftLength,
-      sourceOffsetTick: (loop.sourceOffsetTick + leftLength) % SOURCE_LOOP_TICKS,
+      // Wrap the source window inside this sample's own length rather than a fixed two bars.
+      sourceOffsetTick:
+        (loop.sourceOffsetTick + leftLength) % sourceTicks(sampleById(track.sampleId)),
     });
   }
 
@@ -210,7 +212,7 @@ const appendSelectionCopy = (
     composition.tracks.reduce((count, track) => count + track.clips.length, 0) + additions.length >
     MAX_CLIPS
   ) {
-    return { ok: false, reason: 'That repeat would exceed the 256-clip limit.' };
+    return { ok: false, reason: `That repeat would exceed the ${MAX_CLIPS}-clip limit.` };
   }
 
   return finalComposition({
@@ -322,10 +324,10 @@ export const cloneSelectedVoice = (
   const source = composition.tracks.find((track) => track.id === trackId);
   if (!source) return { ok: false, reason: 'Select one track to add a layer.' };
   if (composition.tracks.length >= MAX_TRACKS)
-    return { ok: false, reason: 'This Audle already has 16 voices.' };
+    return { ok: false, reason: `This Audle already has ${MAX_TRACKS} voices.` };
   const clipCount = composition.tracks.reduce((count, track) => count + track.clips.length, 0);
   if (clipCount + source.clips.length > MAX_CLIPS)
-    return { ok: false, reason: 'That layer would exceed the 256-clip limit.' };
+    return { ok: false, reason: `That layer would exceed the ${MAX_CLIPS}-clip limit.` };
 
   const usedLabels = new Set(composition.tracks.map((track) => track.label));
   let layerNumber = 2;
@@ -345,7 +347,7 @@ export const cloneSelectedVoice = (
 export const deleteLayer = (composition: CompositionV1, trackId: string): OperationResult => {
   const index = composition.tracks.findIndex((track) => track.id === trackId);
   if (index < BASE_TRACKS)
-    return { ok: false, reason: 'The eight daily source tracks cannot be removed.' };
+    return { ok: false, reason: 'The daily source tracks cannot be removed.' };
   return finalComposition({
     ...structuredClone(composition),
     tracks: composition.tracks.filter((track) => track.id !== trackId),
@@ -433,7 +435,7 @@ export const toggleLoopClip = (
     id: createIdAllocator(composition)('clip'),
     kind: 'loop',
     startTick,
-    lengthTicks: Math.min(SOURCE_LOOP_TICKS, totalTicks - startTick),
+    lengthTicks: Math.min(sourceTicks(sampleById(track.sampleId)), totalTicks - startTick),
     sourceOffsetTick: 0,
   };
   if (conflictsWithUnselected(track, loop, new Set())) {
