@@ -9,7 +9,8 @@ import {
 } from './schema';
 import { validatePerformance, type PerformanceV1, type SharedAudle } from './performance';
 
-const MAX_FRAGMENT_LENGTH = 8192;
+/** The longest `#audle=` payload a link may carry, and the cap the short-link API accepts. */
+export const MAX_FRAGMENT_LENGTH = 8192;
 const MAX_INFLATED_LENGTH = 65_536;
 
 export type ShareError =

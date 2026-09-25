@@ -2,4 +2,5 @@
   "name": "audle",
   "compatibility_date": "2026-08-11",
   "pages_build_output_dir": "./dist",
+  "kv_namespaces": [{ "binding": "AUDLE_SHARES", "id": "1b5102a811184a1896f6ba9b0a3105a3" }],
 }

@@ -134,10 +134,30 @@
     refreshImports();
   };
 
+  /** Asks `/api/share` to hold the payload behind a short link. Sharing falls back to the
+   * self-contained `#audle=` link, so a share never depends on this endpoint. */
+  const shortLinkFor = async (payload: string): Promise<string | undefined> => {
+    try {
+      const response = await fetch('/api/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload }),
+      });
+      if (!response.ok) return undefined;
+      const body = (await response.json()) as { url?: unknown };
+      return typeof body.url === 'string' && body.url.startsWith(`${location.origin}/`)
+        ? body.url
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
   const shareComposition = async (composition: CompositionV1, performance?: PerformanceV1) => {
     try {
       const payload = performance ? encodePerformanceShare(performance) : encodeShare(composition);
-      const url = `${location.origin}${location.pathname}#audle=${payload}`;
+      const url =
+        (await shortLinkFor(payload)) ?? `${location.origin}${location.pathname}#audle=${payload}`;
       if (navigator.share) {
         try {
           await navigator.share({ title: 'Audle', text: 'Play this Audle.', url });

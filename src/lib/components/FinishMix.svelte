@@ -137,7 +137,8 @@
   {#if exportError}<p class="error" role="alert">{exportError}</p>{/if}
   {#if exporting}<p class="rendering" role="status">Rendering audio in your browser…</p>{/if}
   <p class="footnote">
-    No account, no upload. Your loop and take stay in this browser until you share them.
+    No account needed. Your loop and take stay in this browser until you share them; a share link is
+    kept on our server for 90 days.
   </p>
 </section>
 
