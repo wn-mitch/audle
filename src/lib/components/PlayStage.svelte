@@ -80,10 +80,7 @@
 </script>
 
 <section class="play-world" aria-labelledby="play-title">
-  <div class="intro">
-    <h1 id="play-title">Make something<br /><em>move.</em></h1>
-  </div>
-
+  <h1 id="play-title" class="sr-only">Play today's loop</h1>
   {#if editor.captureStatus !== 'idle'}
     <div class="capture-banner" role="status">
       <span class:recording={editor.captureStatus === 'recording'} class="capture-light"
@@ -317,8 +314,13 @@
   .capture-light.recording {
     background: #ff9379;
   }
-  .intro {
-    margin-block-end: 28px;
+  .sr-only {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .stage-topline,
   .object-number,
@@ -327,17 +329,6 @@
       700 0.69rem/1.3 ui-monospace,
       monospace;
     letter-spacing: 0.1em;
-  }
-  .intro h1 {
-    margin: 14px 0 10px;
-    font-size: clamp(3.2rem, 8.3vw, 7.2rem);
-    line-height: 0.93;
-    letter-spacing: -0.075em;
-    font-weight: 750;
-  }
-  .intro h1 em {
-    color: #91e9c3;
-    font-style: normal;
   }
   .stage-frame {
     overflow: hidden;
@@ -596,9 +587,13 @@
   }
   .object-bottom strong {
     font-size: clamp(0.78rem, 1.1vw, 0.95rem);
+    line-height: 1.15;
+    /* Two lines, so a longer sound name is readable instead of an ellipsis. */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .object-bottom span {
     color: #93aaa8;
@@ -786,9 +781,6 @@
       inline-size: min(100% - 24px, 600px);
       padding-top: 30px;
     }
-    .intro h1 {
-      font-size: clamp(3.3rem, 13vw, 5.5rem);
-    }
     .objects {
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 6px;
@@ -800,6 +792,9 @@
     }
     .glyph {
       block-size: 42px;
+    }
+    .object-bottom strong {
+      font-size: 0.72rem;
     }
     .glyph .shape {
       transform: scale(0.46);
