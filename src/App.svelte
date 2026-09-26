@@ -566,6 +566,10 @@
     background: var(--audle-deck-raised);
     border: 1px solid var(--audle-outline);
   }
+  .tutorial-offer strong {
+    flex: 1;
+    min-inline-size: 12ch;
+  }
   .tutorial-offer span {
     color: var(--audle-playback-light);
     font-size: 0.75rem;
@@ -634,6 +638,24 @@
   @media (max-width: 540px) {
     .deck-top {
       min-block-size: 62px;
+    }
+    /* One compact line: the prompt on the left, both buttons right-aligned and half height. */
+    .tutorial-offer {
+      gap: 6px;
+      margin: 6px;
+      padding: 8px 10px;
+      font-size: 0.85rem;
+    }
+    .tutorial-offer strong {
+      flex-basis: 100%;
+    }
+    .tutorial-offer span {
+      flex-basis: 100%;
+    }
+    .tutorial-offer button {
+      flex: 1;
+      min-block-size: 40px;
+      padding-inline: 8px;
     }
     .wordmark {
       font-size: 1.35rem;

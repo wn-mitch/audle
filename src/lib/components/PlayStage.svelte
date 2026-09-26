@@ -892,8 +892,13 @@
     .glyph {
       block-size: 42px;
     }
+    .object-number {
+      gap: 6px;
+      font-size: 0.6rem;
+    }
     .object-bottom strong {
-      font-size: 0.72rem;
+      font-size: 0.68rem;
+      letter-spacing: -0.01em;
     }
     .glyph .shape {
       transform: scale(0.46);
