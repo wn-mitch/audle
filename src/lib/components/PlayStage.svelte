@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { animate } from 'animejs';
-  import { motion } from '../motion';
+  import { onMount } from 'svelte';
+  import { flashHit, meterKick, motion, popOn, press, pulseBeat } from '../motion';
   import { LIVE_PATTERNS, type LivePattern } from '../domain/live';
   import { sampleById } from '../data/samples';
   import { SOURCES_PER_DAY } from '../domain/model';
@@ -50,21 +50,32 @@
   );
   let lastBeat = -1;
 
+  /** The beat pulse rides the transport snapshot; the hit flash below rides each sound. */
   $effect(() => {
-    const beat = Math.floor(editor.playheadTick / 96);
-    if (!stage || !editor.playing || !motion.allowed || beat === lastBeat) return;
-    lastBeat = beat;
-    for (const element of stage.querySelectorAll<HTMLElement>(
-      '.sound-object[data-active="true"] .glyph',
-    )) {
-      animate(element, {
-        scale: [1, 1.11, 1],
-        rotate: ['0deg', '3deg', '0deg'],
-        duration: 320,
-        ease: 'outQuint',
-      });
+    if (!editor.playing) {
+      lastBeat = -1;
+      return;
     }
+    const beat = Math.floor(editor.playheadTick / 96);
+    if (!stage || !motion.allowed || beat === lastBeat) return;
+    lastBeat = beat;
+    pulseBeat(stage.querySelectorAll<HTMLElement>('.sound-object[data-active="true"] .glyph'), {
+      accent: beat % 4 === 0,
+    });
   });
+
+  onMount(() =>
+    editor.subscribeHits((hit) => {
+      if (!hit.trackId || !stage) return;
+      const object = stage.querySelector<HTMLElement>(
+        `.sound-object[data-track-id="${hit.trackId}"]`,
+      );
+      if (!object) return;
+      flashHit(object, { strength: hit.kind === 'loop' ? 0.7 : 1 });
+      const meter = object.querySelector<HTMLElement>('.object-meter');
+      if (meter) meterKick(meter, { floor: 0.3 });
+    }),
+  );
 </script>
 
 <section class="play-world" aria-labelledby="play-title">
@@ -98,7 +109,11 @@
           class:selected={editor.selectedTrackId === track.id}
           class:pending={status.startsWith('queued')}
           data-active={status === 'on'}
+          data-track-id={track.id}
           style={`--source:var(--audle-source-${index + 1})`}
+          use:press={{
+            disabled: editor.loading || !!editor.loadingError || editor.playingPerformance,
+          }}
           aria-label={`${sample?.label ?? track.label}, ${status === 'empty' ? 'add to loop' : status === 'off' ? 'off, turn on' : status === 'on' ? 'on, turn off' : 'queued for next bar'}`}
           aria-pressed={status === 'on'}
           disabled={editor.loading || !!editor.loadingError || editor.playingPerformance}
@@ -168,6 +183,10 @@
           class:chosen={pattern === option}
           disabled={!selected || editor.captureStatus !== 'idle' || editor.playingPerformance}
           aria-pressed={pattern === option}
+          use:press={{
+            disabled: !selected || editor.captureStatus !== 'idle' || editor.playingPerformance,
+          }}
+          use:popOn={pattern === option}
           onclick={() => selected && editor.chooseLivePattern(selected.id, option)}
           ><span class="pattern-mark" aria-hidden="true"
             >{#each MARK_STEPS as step (step)}<i class:on={PATTERN_MARKS[option].includes(step)}
@@ -381,23 +400,36 @@
     color: var(--audle-text);
     cursor: pointer;
     text-align: left;
+    /* The flash ring sits on the inner edge and fades through --flash, which the hit motion drives. */
+    box-shadow: inset 0 0 0 3px oklch(var(--source) / var(--flash, 0));
+    /* Transform is owned by the press and flash motion, so it is not transitioned here. */
     transition:
       border-color 0.2s,
       background 0.2s,
-      transform 0.2s,
       box-shadow 0.2s;
   }
-  .sound-object:hover:not(:disabled) {
-    transform: translateY(-3px);
-    border-color: oklch(var(--source) / 0.7);
+  /* The bloom is a solid fill at low alpha, clipped by the pad's overflow. */
+  .sound-object::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: oklch(var(--source) / calc(var(--flash, 0) * 0.16));
+    pointer-events: none;
   }
-  .sound-object:active:not(:disabled) {
-    transform: translateY(1px);
+  @media (hover: hover) {
+    .sound-object:hover:not(:disabled) {
+      border-color: oklch(var(--source) / 0.7);
+    }
+  }
+  .sound-object:global([data-pressed='true']) {
+    background: var(--audle-control-pressed);
   }
   .sound-object.active {
     border-color: oklch(var(--source));
     background: var(--audle-control-hover);
-    box-shadow: inset 0 0 0 1px oklch(var(--source) / 0.32);
+    box-shadow:
+      inset 0 0 0 1px oklch(var(--source) / 0.32),
+      inset 0 0 0 3px oklch(var(--source) / var(--flash, 0));
   }
   .sound-object.selected:after {
     content: '';
@@ -610,12 +642,15 @@
     inline-size: 100%;
     block-size: 3px;
     background: oklch(var(--source));
-    transform: scaleX(0);
+    /* --level rests at 0.3 while the sound is on; each hit kicks it to 1 and lets it decay. */
+    transform: scaleX(var(--level, 0));
     transform-origin: left;
-    transition: transform 0.23s;
   }
   .active .object-meter {
-    transform: scaleX(1);
+    --level: 0.3;
+  }
+  .sound-object:not(.active) .object-meter {
+    transform: scaleX(0);
   }
   .play-controls {
     display: grid;

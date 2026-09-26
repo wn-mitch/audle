@@ -34,3 +34,56 @@ test('muted tracks stay silent to hit listeners', async ({ page }) => {
   await page.waitForTimeout(900);
   expect(await hitCount(page)).toBe(settled);
 });
+
+test('under reduced motion a tap leaves pads untransformed and never flashes', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  const sound = page.locator('.sound-object').nth(8);
+  await expect(sound).toBeEnabled();
+  await sound.click();
+  await expect.poll(() => hitCount(page)).toBeGreaterThan(0);
+  await page.mouse.move(0, 0);
+  const transforms = await page.evaluate(() => {
+    const object = document.querySelectorAll<HTMLElement>('.sound-object')[8]!;
+    return [
+      getComputedStyle(object).transform,
+      getComputedStyle(object.querySelector('.glyph')!).transform,
+    ];
+  });
+  expect(transforms).toEqual(['none', 'none']);
+  await page.waitForTimeout(700);
+  await expect(page.locator('.sound-object[data-hit]')).toHaveCount(0);
+});
+
+test('with motion allowed the pad that fired flashes', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/');
+  await page.locator('.sound-object').nth(8).click();
+  await expect.poll(() => hitCount(page)).toBeGreaterThan(0);
+  // A flash lasts a fraction of a second, so watch attribute mutations instead of polling.
+  const flashed = await page.evaluate(
+    () =>
+      new Promise<string[]>((resolve) => {
+        const seen = new Set<string>();
+        const observer = new MutationObserver((records) => {
+          for (const record of records) {
+            const target = record.target as HTMLElement;
+            if (target.hasAttribute('data-hit')) seen.add(target.dataset.trackId ?? '');
+          }
+        });
+        observer.observe(document.querySelector('.objects')!, {
+          attributes: true,
+          attributeFilter: ['data-hit'],
+          subtree: true,
+        });
+        setTimeout(() => {
+          observer.disconnect();
+          resolve([...seen]);
+        }, 1500);
+      }),
+  );
+  const tapped = await page.evaluate(
+    () => document.querySelectorAll<HTMLElement>('.sound-object')[8]!.dataset.trackId,
+  );
+  expect(flashed).toContain(tapped);
+});
