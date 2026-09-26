@@ -206,3 +206,38 @@ export const setLivePattern = (
     ? { ok: true, value: validated }
     : { ok: false, reason: 'This pattern exceeds the loop’s limits.' };
 };
+
+/**
+ * Shifts a sound's pattern one sixteenth later (`1`) or earlier (`-1`), wrapping inside the loop.
+ * Hits rotate around the loop; a loop source instead rotates where it reads from, so its slices
+ * stay in place while the audio inside them shifts. Clips come back sorted by start so a rotated
+ * pattern that lands on a known feel is recognised by `patternOf`.
+ */
+export const offsetLivePattern = (
+  composition: CompositionV1,
+  trackId: string,
+  direction: -1 | 1,
+): OperationResult => {
+  const track = composition.tracks.find((candidate) => candidate.id === trackId);
+  if (!track) return { ok: false, reason: 'That sound is not in today’s kit.' };
+  if (track.clips.length === 0) return { ok: false, reason: 'Add a pattern before offsetting it.' };
+  const totalTicks = composition.bars * TICKS_PER_BAR;
+  const span = sourceTicks(sampleById(track.sampleId));
+  const wrap = (tick: number, modulus: number) => ((tick % modulus) + modulus) % modulus;
+  const clips = track.clips
+    .map((clip): Clip =>
+      clip.kind === 'hit'
+        ? { ...clip, startTick: wrap(clip.startTick + direction * SIXTEENTH, totalTicks) }
+        : { ...clip, sourceOffsetTick: wrap(clip.sourceOffsetTick + direction * SIXTEENTH, span) },
+    )
+    .sort((a, b) => a.startTick - b.startTick);
+  const validated = validateComposition({
+    ...composition,
+    tracks: composition.tracks.map((candidate) =>
+      candidate.id === trackId ? { ...candidate, clips } : candidate,
+    ),
+  });
+  return validated
+    ? { ok: true, value: validated }
+    : { ok: false, reason: 'That offset would leave the loop’s limits.' };
+};

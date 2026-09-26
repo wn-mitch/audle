@@ -174,6 +174,36 @@
             ? ' · NEXT BAR'
             : ''}</button
         >
+        <div class="offset" role="group" aria-label="Pattern offset">
+          <span>OFFSET</span>
+          <button
+            type="button"
+            aria-label="Offset pattern one step earlier"
+            disabled={!selected.clips.length ||
+              editor.captureStatus !== 'idle' ||
+              editor.playingPerformance}
+            use:press={{
+              disabled:
+                !selected.clips.length ||
+                editor.captureStatus !== 'idle' ||
+                editor.playingPerformance,
+            }}
+            onclick={() => editor.offsetLivePattern(selected.id, -1)}>−1</button
+          ><button
+            type="button"
+            aria-label="Offset pattern one step later"
+            disabled={!selected.clips.length ||
+              editor.captureStatus !== 'idle' ||
+              editor.playingPerformance}
+            use:press={{
+              disabled:
+                !selected.clips.length ||
+                editor.captureStatus !== 'idle' ||
+                editor.playingPerformance,
+            }}
+            onclick={() => editor.offsetLivePattern(selected.id, 1)}>+1</button
+          >
+        </div>
       {/if}
     </div>
     <div class="patterns" role="group" aria-label="Pattern feel">
@@ -756,6 +786,38 @@
   .solo-control[aria-pressed='true'] {
     border-color: var(--audle-accent);
     background: var(--audle-playback-surface);
+  }
+  .offset {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 14px 0 0 10px;
+    vertical-align: bottom;
+    color: var(--audle-text-muted);
+    font:
+      700 0.72rem ui-monospace,
+      monospace;
+    letter-spacing: 0.1em;
+  }
+  .offset span {
+    margin-inline-end: 2px;
+  }
+  .offset button {
+    min-inline-size: 44px;
+    min-block-size: 44px;
+    border: 1px solid var(--audle-accent-dim);
+    background: var(--audle-control);
+    color: var(--audle-text);
+    cursor: pointer;
+    font: inherit;
+    letter-spacing: 0;
+  }
+  .offset button:hover:not(:disabled) {
+    background: var(--audle-control-hover);
+  }
+  .offset button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
   .pattern-strip {
     display: flex;

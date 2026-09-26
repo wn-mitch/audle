@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { sampleById } from '../data/samples';
 import { ROLES, challengeForDate } from './challenge';
-import { LIVE_PATTERNS, clipsForPattern, patternOf, setLivePattern } from './live';
+import {
+  LIVE_PATTERNS,
+  clipsForPattern,
+  offsetLivePattern,
+  patternOf,
+  setLivePattern,
+} from './live';
 import {
   DEFAULT_TRACK_CONTROLS,
   DEFAULT_SOURCE_TICKS,
@@ -104,5 +110,71 @@ describe('live patterns', () => {
         }
       }
     }
+  });
+});
+
+describe('offsetLivePattern', () => {
+  const firstOfKind = (kind: SampleKind) =>
+    challenge.sampleIds.findIndex((_, index) => kindAt(index) === kind);
+  const withPattern = (index: number, pattern: (typeof LIVE_PATTERNS)[number]) => {
+    const result = setLivePattern(emptyComposition(2), `track-${index}`, pattern);
+    if (!result.ok) throw new Error(result.reason);
+    return result.value;
+  };
+  const apply = (composition: CompositionV1, trackId: string, direction: -1 | 1) => {
+    const result = offsetLivePattern(composition, trackId, direction);
+    if (!result.ok) throw new Error(result.reason);
+    return result.value;
+  };
+
+  it('rotates hits one sixteenth and wraps them around the loop', () => {
+    const index = firstOfKind('one-shot');
+    const id = `track-${index}`;
+    const before = withPattern(index, 'steady');
+    const later = apply(before, id, 1);
+    const track = later.tracks[index]!;
+    expect(track.clips.map((clip) => clip.startTick)).toEqual(
+      before.tracks[index]!.clips.map((clip) => clip.startTick + 24),
+    );
+    const earlier = apply(before, id, -1);
+    const starts = earlier.tracks[index]!.clips.map((clip) => clip.startTick);
+    expect(starts[0]).toBeGreaterThanOrEqual(0);
+    expect(starts).toEqual([...starts].sort((a, b) => a - b));
+    expect(starts).toContain(2 * TICKS_PER_BAR - 24);
+  });
+
+  it('comes back to the same feel after a full loop of offsets', () => {
+    const index = firstOfKind('one-shot');
+    const id = `track-${index}`;
+    let composition = withPattern(index, 'moving');
+    for (let step = 0; step < 32; step += 1) composition = apply(composition, id, 1);
+    expect(patternOf(composition, composition.tracks[index]!)).toBe('moving');
+  });
+
+  it('recognises a rotated pattern that lands on another feel', () => {
+    const index = challenge.sampleIds.findIndex((sampleId) => sampleById(sampleId)!.role === 'hat');
+    const id = `track-${index}`;
+    let composition = withPattern(index, 'steady');
+    composition = apply(apply(composition, id, 1), id, 1);
+    expect(patternOf(composition, composition.tracks[index]!)).toBe('offbeat');
+  });
+
+  it('rotates where a loop reads from instead of moving its slices', () => {
+    const index = firstOfKind('loop');
+    const id = `track-${index}`;
+    const before = withPattern(index, 'steady');
+    const after = apply(before, id, -1);
+    const span = DEFAULT_SOURCE_TICKS;
+    after.tracks[index]!.clips.forEach((clip, position) => {
+      const reference = before.tracks[index]!.clips[position]!;
+      expect(clip.startTick).toBe(reference.startTick);
+      if (clip.kind === 'loop' && reference.kind === 'loop')
+        expect(clip.sourceOffsetTick).toBe((reference.sourceOffsetTick - 24 + span) % span);
+    });
+  });
+
+  it('refuses an empty sound', () => {
+    const result = offsetLivePattern(emptyComposition(2), 'track-0', 1);
+    expect(result.ok).toBe(false);
   });
 });

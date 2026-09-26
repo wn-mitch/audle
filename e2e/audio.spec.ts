@@ -89,3 +89,17 @@ test('Finish exports a non-silent WAV from the live loop', async ({ page }) => {
   expect(wav.length).toBeGreaterThan(44);
   expect(wav.subarray(44).some((byte) => byte !== 0)).toBe(true);
 });
+
+test('Offset shifts the selected pattern one step and the strip follows', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('.sound-object').nth(8).click();
+  await page.getByRole('button', { name: 'sparse', exact: true }).click();
+  const steps = page.locator('.pattern-strip .steps span');
+  await expect(steps.nth(0)).toHaveClass(/hit/);
+  await page.getByRole('button', { name: 'Offset pattern one step later' }).click();
+  await expect(steps.nth(1)).toHaveClass(/hit/);
+  await expect(steps.nth(0)).not.toHaveClass(/hit/);
+  await page.getByRole('button', { name: 'Offset pattern one step earlier' }).click();
+  await page.getByRole('button', { name: 'Offset pattern one step earlier' }).click();
+  await expect(steps.nth(15)).toHaveClass(/hit/);
+});

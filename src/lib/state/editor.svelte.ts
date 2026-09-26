@@ -15,7 +15,7 @@ import {
   type CompositionV1,
   type TrackControls,
 } from '../domain/model';
-import { patternOf, setLivePattern, type LivePattern } from '../domain/live';
+import { offsetLivePattern, patternOf, setLivePattern, type LivePattern } from '../domain/live';
 import {
   MAX_PERFORMANCE_BARS,
   MAX_PERFORMANCE_EVENTS,
@@ -252,6 +252,16 @@ export class EditorState {
     this.queuedLive = withoutQueuedTrack(this.queuedLive, trackId);
     this.selectedTrackId = trackId;
     this.apply(setLivePattern(this.composition, trackId, pattern));
+  }
+
+  /** Shifts the sound's pattern one step later or earlier. Refused during a take, like a feel change. */
+  offsetLivePattern(trackId: string, direction: -1 | 1): void {
+    if (this.captureStatus !== 'idle' || this.playingPerformance) {
+      this.notice = 'Finish the take before changing a pattern.';
+      return;
+    }
+    this.selectedTrackId = trackId;
+    this.apply(offsetLivePattern(this.composition, trackId, direction));
   }
 
   toggleLiveSolo(trackId: string): void {
