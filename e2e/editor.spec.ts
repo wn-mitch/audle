@@ -93,3 +93,35 @@ test('Jam with Jev reports an outage without changing the loop', async ({ page }
   await expect(page.getByText('Jev is offline. Your loop is unchanged.')).toBeVisible();
   await expect(page.locator('.clip')).toHaveCount(0);
 });
+
+test('dragging a hit moves it by whole sixteenths and keeps it selected', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name === 'mobile-chromium', 'Touch drags need select mode first.');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  await expect(page.getByText('Decoding sounds')).toHaveCount(0);
+  const lane = page.locator('.lane-content').nth(8);
+  await lane.scrollIntoViewIfNeeded();
+  const box = (await lane.boundingBox())!;
+  await page.mouse.click(box.x + box.width * 0.25 + 2, box.y + box.height / 2);
+  const hit = lane.locator('.clip.hit');
+  await expect(hit).toHaveAttribute('aria-label', /at tick 384\b/);
+
+  const hitBox = (await hit.boundingBox())!;
+  const from = { x: hitBox.x + 4, y: hitBox.y + hitBox.height / 2 };
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  // One bar to the right, in a few steps so the drag passes the tap slop first.
+  for (let step = 1; step <= 4; step += 1)
+    await page.mouse.move(from.x + (box.width * 0.25 * step) / 4, from.y);
+  await page.mouse.up();
+
+  await expect(hit).toHaveAttribute('aria-label', /at tick 768\b/);
+  await expect(hit).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('1 selected')).toBeVisible();
+  const moved = (await hit.boundingBox())!;
+  expect(Math.abs(moved.x - hitBox.x - box.width * 0.25)).toBeLessThan(3);
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(hit).toHaveAttribute('aria-label', /at tick 384\b/);
+});

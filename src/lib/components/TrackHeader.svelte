@@ -83,6 +83,7 @@
     color: var(--audle-text);
     font-size: 0.8rem;
     font-weight: 700;
+    text-overflow: ellipsis;
   }
   .sr-only {
     position: absolute;

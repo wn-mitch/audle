@@ -41,13 +41,36 @@
     return ratio * totalTicks;
   };
 
-  const startLongPress = (event: PointerEvent) => {
+  /** A clip drag in flight: the pointer's start, the lane width for tick mapping, and whether it
+   * has moved past the tap slop yet. Touch drags only start once select mode is on, so a plain
+   * touch still scrolls the timeline. */
+  let clipDrag:
+    | { clipId: string; startX: number; laneWidth: number; moved: boolean; element: HTMLElement }
+    | undefined;
+  /** The drag preview, in ticks, applied to every selected clip until the pointer lifts. */
+  let dragTicks = $state(0);
+  let suppressClick = false;
+
+  const startLongPress = (event: PointerEvent, clipId: string) => {
     pressStart = { x: event.clientX, y: event.clientY };
     window.clearTimeout(pressTimer);
     pressTimer = window.setTimeout(() => {
       selectMode = true;
       pressTimer = undefined;
     }, 400);
+    if (event.pointerType === 'touch' && !selectMode) return;
+    const lane = (event.currentTarget as HTMLElement).parentElement;
+    if (!lane) return;
+    const element = event.currentTarget as HTMLElement;
+    clipDrag = {
+      clipId,
+      startX: event.clientX,
+      laneWidth: lane.getBoundingClientRect().width,
+      moved: false,
+      element,
+    };
+    // Capture from the start: a hit is narrow, so the pointer leaves it before the slop is passed.
+    element.setPointerCapture(event.pointerId);
   };
 
   const cancelLongPress = () => {
@@ -59,7 +82,41 @@
   const moveClipPointer = (event: PointerEvent) => {
     if (pressStart && Math.hypot(event.clientX - pressStart.x, event.clientY - pressStart.y) > 8)
       cancelLongPress();
+    const drag = clipDrag;
+    if (!drag) return;
+    const deltaX = event.clientX - drag.startX;
+    if (!drag.moved) {
+      if (Math.abs(deltaX) <= TAP_SLOP_PX) return;
+      drag.moved = true;
+      dragging = true;
+      // Dragging an unselected clip moves just that clip; a selected one carries the selection.
+      if (!editor.selectedClipIds.includes(drag.clipId)) editor.selectClip(drag.clipId);
+    }
+    dragTicks =
+      Math.round(((deltaX / drag.laneWidth) * totalTicks) / TICKS_PER_SIXTEENTH) *
+      TICKS_PER_SIXTEENTH;
   };
+
+  const finishClipPointer = (event: PointerEvent) => {
+    cancelLongPress();
+    const drag = clipDrag;
+    clipDrag = undefined;
+    if (drag?.element.hasPointerCapture(event.pointerId))
+      drag.element.releasePointerCapture(event.pointerId);
+    if (!drag?.moved) return;
+    dragging = false;
+    const delta = dragTicks;
+    dragTicks = 0;
+    // The click that follows a drag would toggle the selection; it is part of the drag instead.
+    suppressClick = true;
+    if (event.type === 'pointerup' && delta !== 0) editor.moveSelection(delta);
+  };
+
+  /** The preview offset for a selected clip while a drag is in flight, as a lane-relative length. */
+  const dragStyle = (clipId: string) =>
+    dragTicks !== 0 && editor.selectedClipIds.includes(clipId)
+      ? `--drag: ${(dragTicks / totalTicks) * 100}%`
+      : '';
 
   const TAP_SLOP_PX = 6;
   let press: { x: number; y: number; trackId?: string; ruler: boolean } | undefined;
@@ -248,16 +305,22 @@
                 class="clip"
                 data-clip-id={clip.id}
                 role="button"
-                style={`--start: ${(clip.startTick / totalTicks) * 100}%; --width: ${((clip.kind === 'loop' ? clip.lengthTicks : TICKS_PER_SIXTEENTH) / totalTicks) * 100}%`}
+                style={`--start: ${(clip.startTick / totalTicks) * 100}%; --width: ${((clip.kind === 'loop' ? clip.lengthTicks : TICKS_PER_SIXTEENTH) / totalTicks) * 100}%; ${dragStyle(clip.id)}`}
                 tabindex="0"
                 in:pop
                 out:fadeOut
                 use:popOn={editor.selectedClipIds.includes(clip.id)}
-                onpointerdown={startLongPress}
+                onpointerdown={(event) => startLongPress(event, clip.id)}
                 onpointermove={moveClipPointer}
-                onpointerup={cancelLongPress}
-                onpointercancel={cancelLongPress}
-                onclick={(event) => editor.selectClip(clip.id, event.shiftKey || selectMode)}
+                onpointerup={finishClipPointer}
+                onpointercancel={finishClipPointer}
+                onclick={(event) => {
+                  if (suppressClick) {
+                    suppressClick = false;
+                    return;
+                  }
+                  editor.selectClip(clip.id, event.shiftKey || selectMode);
+                }}
                 ondblclick={() => {
                   editor.selectClip(clip.id);
                   editor.deleteSelection();
@@ -291,7 +354,7 @@
                   aria-valuenow={clip.lengthTicks}
                   class="resize"
                   role="slider"
-                  style={`--edge: ${((clip.startTick + clip.lengthTicks) / totalTicks) * 100}%`}
+                  style={`--edge: ${((clip.startTick + clip.lengthTicks) / totalTicks) * 100}%; ${dragStyle(clip.id)}`}
                   tabindex="0"
                   onpointerdown={(event) => beginResize(event, track.id, clip)}
                   onkeydown={(event) => {
@@ -378,7 +441,7 @@
     overscroll-behavior: contain;
   }
   .grid {
-    --header-w: 154px;
+    --header-w: 172px;
     --bar-min: 260px;
     position: relative;
     min-inline-size: max(100%, calc(var(--header-w) + var(--bar-min) * var(--bars, 1)));
@@ -460,12 +523,33 @@
     background: var(--audle-loop-surface);
     box-shadow: inset 0 0 0 1px var(--audle-loop-light);
     color: var(--audle-text);
-    cursor: pointer;
+    cursor: grab;
+    /* --drag previews a move as a percentage of the lane, which is the size container below. */
+    translate: calc(var(--drag, 0%) / 100% * 100cqi) 0;
   }
+  .lane-content {
+    container-type: inline-size;
+  }
+  .timeline.dragging .clip {
+    cursor: grabbing;
+  }
+  /* A hit is a fixed pill wide enough to read and grab, whatever the zoom; its left edge still
+   * marks the tick. The strikes show the roll count. */
   .clip.hit {
+    justify-content: center;
+    inline-size: 22px;
+    min-inline-size: 22px;
     border-color: var(--audle-one-shot-light);
     background: var(--audle-one-shot-surface);
     box-shadow: inset 0 0 0 1px var(--audle-one-shot-light);
+  }
+  .clip.hit::before {
+    content: '';
+    position: absolute;
+    inset: -8px -4px;
+  }
+  .clip.hit .clip-copy {
+    display: none;
   }
   .clip.selected {
     z-index: 3;
@@ -482,9 +566,12 @@
     border-inline-start: 1px solid var(--audle-loop-light);
     cursor: ew-resize;
     touch-action: none;
+    translate: calc(var(--drag, 0%) / 100% * 100cqi) 0;
   }
   .hit .strikes {
     color: var(--audle-one-shot-light);
+    font-weight: 800;
+    font-size: 0.8rem;
     letter-spacing: 1px;
   }
   .clip-copy {
