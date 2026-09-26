@@ -8,5 +8,7 @@ interface Window {
     transportTick: () => number;
     outputRms: () => number;
     activeVoiceCount: () => number;
+    hitCount: () => number;
+    lastHit: () => import('./lib/audio/engine').HitEvent | undefined;
   };
 }

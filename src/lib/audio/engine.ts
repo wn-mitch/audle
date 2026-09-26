@@ -6,6 +6,7 @@ import {
   type ChallengeSnapshot,
   type Clip,
   type CompositionV1,
+  type Track,
   type TrackControls,
 } from '../domain/model';
 import type { PerformanceV1 } from '../domain/performance';
@@ -14,6 +15,16 @@ export type Unsubscribe = () => void;
 export interface TransportSnapshot {
   playing: boolean;
   tick: number;
+}
+
+/** A sound the engine has just started, delivered on the animation frame nearest its audio time. */
+export interface HitEvent {
+  /** Absent for auditions, which play a sample outside any track. */
+  trackId?: string;
+  sampleId: string;
+  kind: 'hit' | 'loop' | 'audition';
+  tick: number;
+  time: number;
 }
 
 export interface AudioEngine {
@@ -34,6 +45,10 @@ export interface AudioEngine {
   playPerformance(performance: PerformanceV1): void;
   setTrackControls(trackId: string, controls: TrackControls): void;
   subscribeTransport(listener: (snapshot: TransportSnapshot) => void): Unsubscribe;
+  /** Listeners run on the animation frame closest to the sound, not when it was scheduled. */
+  subscribeHits(listener: (hit: HitEvent) => void): Unsubscribe;
+  /** The transport position right now, for frame-rate readouts between transport snapshots. */
+  currentTick(): number;
   dispose(): void;
 }
 
@@ -63,6 +78,9 @@ export class ToneAudioEngine implements AudioEngine {
   private readonly limiter = new Tone.Limiter(-1);
   private readonly analyser = new Tone.Analyser('waveform', 256);
   private readonly listeners = new Set<(snapshot: TransportSnapshot) => void>();
+  private readonly hitListeners = new Set<(hit: HitEvent) => void>();
+  /** Mute and solo state while a take replays, which the composition does not reflect. */
+  private performanceControls: Map<string, TrackControls> | undefined;
   private readonly buffers = new Map<string, Tone.ToneAudioBuffer>();
   private readonly nodes = new Map<string, TrackNodes>();
   private readonly soundingSources = new Map<SoundingSource, string>();
@@ -81,10 +99,11 @@ export class ToneAudioEngine implements AudioEngine {
     this.limiter.connect(this.analyser);
     this.analyser.toDestination();
     this.transport.PPQ = TICKS_PER_QUARTER;
-    this.transportListenerId = this.transport.scheduleRepeat(
-      () => this.emitTransport(),
-      transportTime(24),
-    );
+    // The callback runs a lookahead early; the snapshot waits for the frame the audio reaches.
+    this.transportListenerId = this.transport.scheduleRepeat((time) => {
+      const tick = this.transport.getTicksAtTime(time);
+      Tone.getDraw().schedule(() => this.emitTransport(tick), time);
+    }, transportTime(24));
   }
 
   async unlock(): Promise<void> {
@@ -156,6 +175,8 @@ export class ToneAudioEngine implements AudioEngine {
     this.pending.clear();
     for (const id of this.performanceEvents) this.transport.clear(id);
     this.performanceEvents.clear();
+    this.performanceControls = undefined;
+    Tone.getDraw().cancel();
     this.transport.stop();
     this.transport.ticks = 0;
     this.loopRounds = 0;
@@ -182,6 +203,8 @@ export class ToneAudioEngine implements AudioEngine {
           : new Tone.Player(buffer);
       source.connect(this.limiter);
       this.trackSource(source, `audition-${sampleId}`);
+      const now = Tone.now();
+      this.announceHit(now, { sampleId, kind: 'audition', tick: this.transport.ticks, time: now });
       if (sample.kind === 'loop') {
         source.playbackRate = 1;
         source.start(undefined, 0, buffer.duration);
@@ -291,6 +314,7 @@ export class ToneAudioEngine implements AudioEngine {
     const controls = new Map(
       performance.composition.tracks.map((track) => [track.id, { ...track.controls }]),
     );
+    this.performanceControls = controls;
     for (const event of performance.events) {
       const id = this.transport.scheduleOnce((time) => {
         const next = controls.get(event.trackId);
@@ -319,6 +343,15 @@ export class ToneAudioEngine implements AudioEngine {
     this.listeners.add(listener);
     listener({ playing: this.transport.state === 'started', tick: this.transport.ticks });
     return () => this.listeners.delete(listener);
+  }
+
+  subscribeHits(listener: (hit: HitEvent) => void): Unsubscribe {
+    this.hitListeners.add(listener);
+    return () => this.hitListeners.delete(listener);
+  }
+
+  currentTick(): number {
+    return this.transport.ticks;
   }
 
   debug(): {
@@ -364,11 +397,32 @@ export class ToneAudioEngine implements AudioEngine {
     this.limiter.dispose();
     this.analyser.dispose();
     this.listeners.clear();
+    this.hitListeners.clear();
   }
 
-  private emitTransport(): void {
-    const snapshot = { playing: this.transport.state === 'started', tick: this.transport.ticks };
+  private emitTransport(tick: number = this.transport.ticks): void {
+    const snapshot = { playing: this.transport.state === 'started', tick };
     for (const listener of this.listeners) listener(snapshot);
+  }
+
+  /** Tells hit listeners about a sound on the frame it becomes audible. Silent tracks stay silent. */
+  private announceHit(time: number, hit: HitEvent, track?: Track): void {
+    if (this.hitListeners.size === 0 || this.disposed) return;
+    if (track && !this.isAudible(track)) return;
+    Tone.getDraw().schedule(() => {
+      if (this.disposed) return;
+      for (const listener of this.hitListeners) listener(hit);
+    }, time);
+  }
+
+  private isAudible(track: Track): boolean {
+    const controlsFor = (candidate: Track) =>
+      this.performanceControls?.get(candidate.id) ?? candidate.controls;
+    const soloed = (this.composition?.tracks ?? []).some(
+      (candidate) => controlsFor(candidate).solo,
+    );
+    const controls = controlsFor(track);
+    return !(controls.muted || (soloed && !controls.solo));
   }
 
   private synchronizeTrackNodes(composition: CompositionV1): void {
@@ -451,6 +505,11 @@ export class ToneAudioEngine implements AudioEngine {
         (event.clip.sourceOffsetTick * 60) / (TICKS_PER_QUARTER * sample.sourceBpm);
       const durationSeconds =
         (event.clip.lengthTicks * 60) / (TICKS_PER_QUARTER * composition.challenge.bpm);
+      this.announceHit(
+        time,
+        { trackId: track.id, sampleId: sample.id, kind: 'loop', tick: event.clip.startTick, time },
+        track,
+      );
       source.start(time, offsetSeconds, durationSeconds);
       source.stop(time + durationSeconds);
       return;
@@ -465,7 +524,19 @@ export class ToneAudioEngine implements AudioEngine {
         source.playbackRate = 2 ** (track.controls.tuneSemitones / 12);
         source.connect(nodes.filter);
         this.trackSource(source, track.id);
-        source.start(time + index * strikeSeconds);
+        const strikeTime = time + index * strikeSeconds;
+        this.announceHit(
+          strikeTime,
+          {
+            trackId: track.id,
+            sampleId: sample.id,
+            kind: 'hit',
+            tick: event.clip.startTick + (index * TICKS_PER_QUARTER) / 4 / event.clip.ratchet,
+            time: strikeTime,
+          },
+          track,
+        );
+        source.start(strikeTime);
       }
     }
   }

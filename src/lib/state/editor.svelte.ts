@@ -2,6 +2,7 @@ import { SvelteMap } from 'svelte/reactivity';
 import {
   AssetLoadError,
   type AudioEngine,
+  type HitEvent,
   type TransportSnapshot,
   type Unsubscribe,
 } from '../audio/engine';
@@ -131,6 +132,17 @@ export class EditorState {
     );
     engine.setComposition(this.composition);
     this.performance = loadPerformance(challenge.date);
+  }
+
+  /** Hit events are delivered outside Svelte state: they fire per sound, and a state write per
+   * sound would re-render every consumer. Subscribers animate the element directly. */
+  subscribeHits(listener: (hit: HitEvent) => void): Unsubscribe {
+    return this.engine.subscribeHits(listener);
+  }
+
+  /** The live transport tick, for frame-rate readouts between snapshots. */
+  currentTick(): number {
+    return this.engine.currentTick();
   }
 
   get selectedTrack() {

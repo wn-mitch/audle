@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { ToneAudioEngine } from './lib/audio/engine';
+  import { ToneAudioEngine, type HitEvent } from './lib/audio/engine';
   import PlayStage from './lib/components/PlayStage.svelte';
   import FinishMix from './lib/components/FinishMix.svelte';
   import TutorialCoach from './lib/components/TutorialCoach.svelte';
@@ -247,11 +247,19 @@
     readSharedFragment();
     window.addEventListener('hashchange', readSharedFragment);
     if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
+      let hitCount = 0;
+      let lastHit: HitEvent | undefined;
+      engine.subscribeHits((hit) => {
+        hitCount += 1;
+        lastHit = hit;
+      });
       window.__audleDebug = {
         audioState: () => engine.debug().audioState,
         transportTick: () => engine.debug().transportTick,
         outputRms: () => engine.debug().outputRms,
         activeVoiceCount: () => engine.debug().activeVoiceCount,
+        hitCount: () => hitCount,
+        lastHit: () => lastHit,
       };
     }
     if (view !== 'shared') void editor.loadAudio();

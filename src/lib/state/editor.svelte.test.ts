@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { AudioEngine, TransportSnapshot, Unsubscribe } from '../audio/engine';
+import type { AudioEngine, HitEvent, TransportSnapshot, Unsubscribe } from '../audio/engine';
 import { starterForChallenge } from '../data/examples';
 import { challengeForDate } from '../domain/challenge';
 import { LIVE_PATTERNS } from '../domain/live';
@@ -18,6 +18,7 @@ class FakeAudioEngine implements AudioEngine {
   tick = 0;
   private scheduled: Array<{ tick: number; callback: (tick: number) => void }> = [];
   private readonly listeners = new Set<(snapshot: TransportSnapshot) => void>();
+  private readonly hitListeners = new Set<(hit: HitEvent) => void>();
 
   async unlock(): Promise<void> {}
   async loadChallenge(): Promise<void> {}
@@ -73,6 +74,16 @@ class FakeAudioEngine implements AudioEngine {
     this.listeners.add(listener);
     listener({ playing: this.playing, tick: 0 });
     return () => this.listeners.delete(listener);
+  }
+  subscribeHits(listener: (hit: HitEvent) => void): Unsubscribe {
+    this.hitListeners.add(listener);
+    return () => this.hitListeners.delete(listener);
+  }
+  currentTick(): number {
+    return this.tick;
+  }
+  emitHit(hit: HitEvent): void {
+    for (const listener of this.hitListeners) listener(hit);
   }
   dispose(): void {}
 
@@ -334,6 +345,20 @@ describe('EditorState', () => {
     expect(state.composition.tracks[2]!.clips).toHaveLength(0);
     state.undo();
     expect(state.composition.tracks[0]!.clips).toHaveLength(0);
+    state.destroy();
+  });
+});
+
+describe('hit events', () => {
+  it('passes engine hits through and stops after unsubscribe', () => {
+    const engine = new FakeAudioEngine();
+    const state = new EditorState(engine, challengeForDate('2026-08-12'));
+    const seen: string[] = [];
+    const stop = state.subscribeHits((hit) => seen.push(hit.sampleId));
+    engine.emitHit({ sampleId: 'kick-01', kind: 'audition', tick: 0, time: 0 });
+    stop();
+    engine.emitHit({ sampleId: 'kick-02', kind: 'audition', tick: 0, time: 0 });
+    expect(seen).toEqual(['kick-01']);
     state.destroy();
   });
 });
