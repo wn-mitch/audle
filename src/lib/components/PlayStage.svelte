@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { animate } from 'animejs';
+  import { motion } from '../motion';
   import { LIVE_PATTERNS, type LivePattern } from '../domain/live';
   import { sampleById } from '../data/samples';
   import { SOURCES_PER_DAY } from '../domain/model';
@@ -28,7 +28,6 @@
     onFinish: () => void;
   } = $props();
   let stage: HTMLElement;
-  let motionAllowed = false;
   const tracks = $derived(editor.composition.tracks.slice(0, SOURCES_PER_DAY));
   const selected = $derived(
     editor.composition.tracks.find((track) => track.id === editor.selectedTrackId),
@@ -51,17 +50,9 @@
   );
   let lastBeat = -1;
 
-  onMount(() => {
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const sync = () => (motionAllowed = !media.matches);
-    sync();
-    media.addEventListener('change', sync);
-    return () => media.removeEventListener('change', sync);
-  });
-
   $effect(() => {
     const beat = Math.floor(editor.playheadTick / 96);
-    if (!stage || !editor.playing || !motionAllowed || beat === lastBeat) return;
+    if (!stage || !editor.playing || !motion.allowed || beat === lastBeat) return;
     lastBeat = beat;
     for (const element of stage.querySelectorAll<HTMLElement>(
       '.sound-object[data-active="true"] .glyph',

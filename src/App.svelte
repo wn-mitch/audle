@@ -33,6 +33,7 @@
     saveTutorialComplete,
   } from './lib/state/persistence';
   import { EditorState } from './lib/state/editor.svelte';
+  import { watchMotionPreference } from './lib/motion';
 
   type View = 'maker' | 'listen' | 'shared' | 'tutorial';
 
@@ -239,6 +240,7 @@
 
   onMount(() => {
     updateCountdown();
+    const stopMotionWatch = watchMotionPreference();
     const clock = window.setInterval(updateCountdown, 30_000);
     tutorialOffered = !loadTutorialComplete();
     refreshImports();
@@ -255,6 +257,7 @@
     if (view !== 'shared') void editor.loadAudio();
     return () => {
       window.clearInterval(clock);
+      stopMotionWatch();
       window.removeEventListener('hashchange', readSharedFragment);
       tutorial?.detach();
       editor.destroy();
