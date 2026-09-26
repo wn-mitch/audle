@@ -1,12 +1,24 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { sampleById } from '../data/samples';
   import type { ChallengeSnapshot } from '../domain/model';
+  import { flashHit, press } from '../motion';
   import type { EditorState } from '../state/editor.svelte';
 
   let { challenge, editor }: { challenge: ChallengeSnapshot; editor: EditorState } = $props();
+  let bank: HTMLElement;
+
+  // An audition is the pad's own sound, so the pad lights on the frame it plays.
+  onMount(() =>
+    editor.subscribeHits((hit) => {
+      if (hit.kind !== 'audition' || !bank) return;
+      const pad = bank.querySelector<HTMLElement>(`.pad[data-sample-id="${hit.sampleId}"]`);
+      if (pad) flashHit(pad);
+    }),
+  );
 </script>
 
-<section aria-label="Today’s sounds" class="pad-bank" aria-busy={editor.loading}>
+<section aria-label="Today’s sounds" class="pad-bank" aria-busy={editor.loading} bind:this={bank}>
   <header>
     <p>Today’s source deck</p>
     <span>{editor.loading ? 'Decoding sounds' : 'Tap any sound'}</span>
@@ -21,8 +33,10 @@
         class:selected
         class:skeleton={editor.loading}
         class="pad"
+        data-sample-id={sampleId}
         disabled={editor.loading || Boolean(editor.loadingError)}
         type="button"
+        use:press={{ disabled: editor.loading || Boolean(editor.loadingError) }}
         onpointerdown={(event) => {
           event.preventDefault();
           event.currentTarget.focus();
@@ -35,7 +49,7 @@
           }
         }}
       >
-        <span aria-hidden="true" class="pad-glyph">{sample.kind === 'loop' ? '↻' : '●'}</span>
+        <span aria-hidden="true" class="pad-glyph glyph">{sample.kind === 'loop' ? '↻' : '●'}</span>
         <span class="pad-name">{editor.loading ? 'Loading' : sample.label}</span>
         <span class="pad-kind">{sample.kind === 'loop' ? 'Loop' : 'Hit'}</span>
       </button>
@@ -85,6 +99,9 @@
     gap: 8px;
   }
   .pad {
+    --pad-light: var(--audle-one-shot-light);
+    --pad-flash: 0.8 0.12 215;
+    position: relative;
     display: grid;
     grid-template-columns: auto 1fr;
     align-items: center;
@@ -92,32 +109,41 @@
     min-block-size: 68px;
     padding: 10px;
     overflow: hidden;
-    border: 1px solid var(--audle-one-shot-light);
+    border: 1px solid var(--pad-light);
     background: var(--audle-one-shot-surface);
+    /* The flash ring fades through --flash, which the audition motion drives. */
     box-shadow:
-      inset 0 0 0 1px var(--audle-one-shot-light),
+      inset 0 0 0 1px var(--pad-light),
+      inset 0 0 0 3px oklch(var(--pad-flash) / var(--flash, 0)),
       var(--audle-control-rest);
     color: var(--audle-text);
     cursor: pointer;
     text-align: start;
     touch-action: manipulation;
-    transition:
-      transform 90ms ease-out,
-      background 100ms ease-out;
+    /* Transform belongs to the press motion; only colour transitions here. */
+    transition: background 100ms ease-out;
+  }
+  /* The audition bloom: a solid low-alpha fill clipped by the pad. */
+  .pad::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: oklch(var(--pad-flash) / calc(var(--flash, 0) * 0.18));
+    pointer-events: none;
   }
   .pad.loop {
-    border-color: var(--audle-loop-light);
+    --pad-light: var(--audle-loop-light);
+    --pad-flash: 0.74 0.16 302;
     background: var(--audle-loop-surface);
-    box-shadow:
-      inset 0 0 0 1px var(--audle-loop-light),
-      var(--audle-control-rest);
   }
   .pad:hover:not(:disabled) {
     background: var(--audle-control-hover);
   }
-  .pad:active:not(:disabled) {
-    transform: translateY(3px) scale(0.96);
-    box-shadow: var(--audle-control-contact);
+  .pad:global([data-pressed='true']) {
+    background: var(--audle-control-pressed);
+    box-shadow:
+      inset 0 0 0 1px var(--pad-light),
+      var(--audle-control-contact);
   }
   .pad.selected {
     outline: 2px dashed var(--audle-selection-light);
@@ -172,9 +198,6 @@
   @media (prefers-reduced-motion: reduce) {
     .pad {
       transition: none;
-    }
-    .pad:active:not(:disabled) {
-      transform: none;
     }
   }
 </style>

@@ -211,7 +211,7 @@
     color: var(--audle-accent);
   }
   .card-index span {
-    color: var(--audle-text-dim);
+    color: var(--audle-text-muted);
   }
   .card h2 {
     margin: 35px 0 4px;
