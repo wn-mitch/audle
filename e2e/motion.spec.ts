@@ -87,3 +87,52 @@ test('with motion allowed the pad that fired flashes', async ({ page }) => {
   );
   expect(flashed).toContain(tapped);
 });
+
+test('the Arrange playhead sweeps between transport snapshots', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  await page.getByRole('button', { name: 'Remix today’s starter' }).click();
+  const play = page.getByRole('button', { name: 'Play composition' });
+  await expect(play).toBeEnabled();
+  await play.click();
+  await expect.poll(() => transportTick(page)).toBeGreaterThan(0);
+  // A sixteenth at 140 BPM lasts about 107ms, so six frames of stepping show at most two
+  // positions; a frame-rate sweep shows a new one nearly every frame.
+  const distinct = await page.evaluate(async () => {
+    const grid = document.querySelector<HTMLElement>('.grid')!;
+    const seen = new Set<string>();
+    for (let frame = 0; frame < 6; frame += 1) {
+      seen.add(grid.style.getPropertyValue('--playhead-ratio'));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    return seen.size;
+  });
+  expect(distinct).toBeGreaterThan(2);
+  await page.getByRole('button', { name: 'Stop playback' }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        document.querySelector<HTMLElement>('.grid')!.style.getPropertyValue('--playhead-ratio'),
+      ),
+    )
+    .toBe('0');
+});
+
+test('under reduced motion the Arrange playhead steps with the transport', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  await page.getByRole('button', { name: 'Remix today’s starter' }).click();
+  await page.getByRole('button', { name: 'Play composition' }).click();
+  await expect.poll(() => transportTick(page)).toBeGreaterThan(0);
+  const distinct = await page.evaluate(async () => {
+    const grid = document.querySelector<HTMLElement>('.grid')!;
+    const seen = new Set<string>();
+    for (let frame = 0; frame < 4; frame += 1) {
+      seen.add(grid.style.getPropertyValue('--playhead-ratio'));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    return seen.size;
+  });
+  expect(distinct).toBeLessThanOrEqual(2);
+});

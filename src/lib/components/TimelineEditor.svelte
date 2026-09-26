@@ -2,7 +2,7 @@
   import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH, type LoopClip } from '../domain/model';
   import type { EditorState } from '../state/editor.svelte';
   import { sampleById } from '../data/samples';
-  import { fadeOut, pop, popOn } from '../motion';
+  import { fadeOut, motion, pop, popOn, subscribeFrame } from '../motion';
   import TrackHeader from './TrackHeader.svelte';
 
   let { editor }: { editor: EditorState } = $props();
@@ -15,6 +15,19 @@
   let pressStart = $state<{ x: number; y: number } | undefined>(undefined);
   let pressTimer: number | undefined;
   const totalTicks = $derived(editor.composition.bars * TICKS_PER_BAR);
+
+  /** While playing with motion allowed, the playhead sweeps at frame rate from the live transport;
+   * otherwise it steps with each transport snapshot, which keeps click-to-place exact. */
+  $effect(() => {
+    if (!grid) return;
+    const surface = grid;
+    if (editor.playing && motion.allowed) {
+      return subscribeFrame(() => {
+        surface.style.setProperty('--playhead-ratio', String(editor.currentTick() / totalTicks));
+      });
+    }
+    surface.style.setProperty('--playhead-ratio', String(editor.playheadTick / totalTicks));
+  });
   const steps = $derived(
     Array.from({ length: totalTicks / TICKS_PER_SIXTEENTH }, (_, index) => index),
   );
@@ -190,7 +203,7 @@
       bind:this={grid}
       class="grid"
       role="region"
-      style={`--bars: ${editor.composition.bars}`}
+      style:--bars={editor.composition.bars}
       onpointerdown={startMarquee}
       onpointermove={(event) => {
         updateMarquee(event);
@@ -200,13 +213,12 @@
       onpointerup={finishMarquee}
       onpointercancel={finishMarquee}
     >
-      <div class="ruler" style={`--bars: ${editor.composition.bars}`}>
+      <div class="ruler" style:--bars={editor.composition.bars}>
         <span class="sticky">Track</span>
         {#each Array.from({ length: editor.composition.bars }, (_, index) => index + 1) as bar (bar)}
           <span>Bar {bar}</span>
         {/each}
-        <i class="playhead-ruler" style={`--playhead-ratio: ${editor.playheadTick / totalTicks}`}
-        ></i>
+        <i class="playhead-ruler"></i>
       </div>
       {#each editor.composition.tracks as track, trackIndex (track.id)}
         {@const loopLane = sampleById(track.sampleId)?.kind === 'loop'}
@@ -302,11 +314,7 @@
                 style={ghostFor(track.id, loopLane)}
               ></i>
             {/if}
-            <i
-              aria-hidden="true"
-              class="playhead"
-              style={`--playhead: ${(editor.playheadTick / totalTicks) * 100}%`}
-            ></i>
+            <i aria-hidden="true" class="playhead"></i>
           </div>
         </div>
       {/each}
@@ -490,14 +498,15 @@
     position: absolute;
     z-index: 4;
     inset-block: 0;
-    inset-inline-start: var(--playhead);
+    /* --playhead-ratio lives on the grid: one write per frame moves every lane's playhead. */
+    inset-inline-start: calc(var(--playhead-ratio, 0) * 100%);
     inline-size: 2px;
     background: var(--audle-playback-light);
     pointer-events: none;
   }
   .playhead-ruler {
     z-index: 6;
-    inset-inline-start: calc(var(--header-w) + (100% - var(--header-w)) * var(--playhead-ratio));
+    inset-inline-start: calc(var(--header-w) + (100% - var(--header-w)) * var(--playhead-ratio, 0));
   }
   .ghost {
     position: absolute;
