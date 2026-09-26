@@ -111,7 +111,8 @@ export const enter: Action<HTMLElement, { index: number; columns: number; once?:
   parameter,
 ) => {
   const key = parameter.once;
-  if (!isMotionAllowed() || (key && entered.has(key))) return {};
+  // A hidden document pauses the animation engine, which would leave the element invisible.
+  if (!isMotionAllowed() || document.hidden || (key && entered.has(key))) return {};
   utils.set(element, { opacity: 0, translateY: 8, scale: 0.98 });
   animate(element, {
     opacity: 1,

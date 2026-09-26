@@ -33,7 +33,7 @@
     saveTutorialComplete,
   } from './lib/state/persistence';
   import { EditorState } from './lib/state/editor.svelte';
-  import { watchMotionPreference } from './lib/motion';
+  import { rise, watchMotionPreference } from './lib/motion';
 
   type View = 'maker' | 'listen' | 'shared' | 'tutorial';
 
@@ -337,20 +337,24 @@
     {/if}
     <StatusNotice message={editor.notice} onDismiss={() => (editor.notice = undefined)} />
     {#if makerMode === 'play'}
-      <PlayStage
-        {editor}
-        onArrange={() => showMaker('arrange')}
-        onFinish={() => showMaker('finish')}
-      />
+      <div class="view" in:rise>
+        <PlayStage
+          {editor}
+          onArrange={() => showMaker('arrange')}
+          onFinish={() => showMaker('finish')}
+        />
+      </div>
     {:else if makerMode === 'finish'}
-      <FinishMix
-        {editor}
-        onBack={() => showMaker('play')}
-        onShareLoop={() => void shareComposition(editor.composition)}
-        onShareTake={(take) => void shareComposition(take.composition, take)}
-      />
+      <div class="view" in:rise>
+        <FinishMix
+          {editor}
+          onBack={() => showMaker('play')}
+          onShareLoop={() => void shareComposition(editor.composition)}
+          onShareTake={(take) => void shareComposition(take.composition, take)}
+        />
+      </div>
     {:else}
-      <section class="maker-workspace">
+      <section class="maker-workspace" in:rise>
         <PadBank {challenge} {editor} />
         <div class="arrangement">
           {#if !makerHasClips && !editor.loading}
@@ -398,18 +402,22 @@
       <TuningDeck editor={tutorial} />
     </section>
   {:else if view === 'listen'}
-    <ListenGallery {examples} shared={sharedImported} onOpen={openShared} />
+    <div class="view" in:rise>
+      <ListenGallery {examples} shared={sharedImported} onOpen={openShared} />
+    </div>
   {:else if view === 'shared'}
     {#if shared}
-      <SharedAudlePlayer
-        composition={shared.composition}
-        performance={shared.performance}
-        playing={editor.playing}
-        picked={sharedPicked}
-        onPlay={() => void playShared()}
-        onPick={() => void chooseSharedFavorite()}
-        onBack={() => leaveShared('maker')}
-      />
+      <div class="view" in:rise>
+        <SharedAudlePlayer
+          composition={shared.composition}
+          performance={shared.performance}
+          playing={editor.playing}
+          picked={sharedPicked}
+          onPlay={() => void playShared()}
+          onPick={() => void chooseSharedFavorite()}
+          onBack={() => leaveShared('maker')}
+        />
+      </div>
     {:else}
       <section class="shared-error" role="alert">
         <h1>That link did not open.</h1>

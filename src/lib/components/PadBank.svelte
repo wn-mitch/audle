@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { sampleById } from '../data/samples';
   import type { ChallengeSnapshot } from '../domain/model';
-  import { flashHit, press } from '../motion';
+  import { enter, flashHit, press } from '../motion';
   import type { EditorState } from '../state/editor.svelte';
 
   let { challenge, editor }: { challenge: ChallengeSnapshot; editor: EditorState } = $props();
@@ -24,7 +24,7 @@
     <span>{editor.loading ? 'Decoding sounds' : 'Tap any sound'}</span>
   </header>
   <div class="pads">
-    {#each challenge.sampleIds as sampleId (sampleId)}
+    {#each challenge.sampleIds as sampleId, index (sampleId)}
       {@const sample = sampleById(sampleId)!}
       {@const selected = editor.selectedTrack?.sampleId === sampleId}
       <button
@@ -37,6 +37,7 @@
         disabled={editor.loading || Boolean(editor.loadingError)}
         type="button"
         use:press={{ disabled: editor.loading || Boolean(editor.loadingError) }}
+        use:enter={{ index, columns: 2, once: 'pad-bank' }}
         onpointerdown={(event) => {
           event.preventDefault();
           event.currentTarget.focus();

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { flashHit, meterKick, motion, popOn, press, pulseBeat } from '../motion';
+  import { enter, flashHit, meterKick, motion, popOn, press, pulseBeat, rise } from '../motion';
   import { LIVE_PATTERNS, type LivePattern } from '../domain/live';
   import { sampleById } from '../data/samples';
   import { SOURCES_PER_DAY } from '../domain/model';
@@ -81,7 +81,7 @@
 <section class="play-world" aria-labelledby="play-title">
   <h1 id="play-title" class="sr-only">Play today's loop</h1>
   {#if editor.captureStatus !== 'idle'}
-    <div class="capture-banner" role="status">
+    <div class="capture-banner" role="status" transition:rise>
       <span class:recording={editor.captureStatus === 'recording'} class="capture-light"
       ></span><strong
         >{editor.captureStatus === 'count-in'
@@ -110,6 +110,7 @@
           class:pending={status.startsWith('queued')}
           data-active={status === 'on'}
           data-track-id={track.id}
+          use:enter={{ index, columns: 8, once: 'play-grid' }}
           style={`--source:var(--audle-source-${index + 1})`}
           use:press={{
             disabled: editor.loading || !!editor.loadingError || editor.playingPerformance,

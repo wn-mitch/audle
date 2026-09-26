@@ -2,6 +2,7 @@
   import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH, type LoopClip } from '../domain/model';
   import type { EditorState } from '../state/editor.svelte';
   import { sampleById } from '../data/samples';
+  import { fadeOut, pop, popOn } from '../motion';
   import TrackHeader from './TrackHeader.svelte';
 
   let { editor }: { editor: EditorState } = $props();
@@ -237,6 +238,9 @@
                 role="button"
                 style={`--start: ${(clip.startTick / totalTicks) * 100}%; --width: ${((clip.kind === 'loop' ? clip.lengthTicks : TICKS_PER_SIXTEENTH) / totalTicks) * 100}%`}
                 tabindex="0"
+                in:pop
+                out:fadeOut
+                use:popOn={editor.selectedClipIds.includes(clip.id)}
                 onpointerdown={startLongPress}
                 onpointermove={moveClipPointer}
                 onpointerup={cancelLongPress}

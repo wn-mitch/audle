@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rise } from '../motion';
   let {
     message,
     tone = 'neutral',
@@ -16,6 +17,7 @@
     class:recording={tone === 'record'}
     class="notice"
     role="status"
+    transition:rise={{ y: -8 }}
   >
     <span aria-hidden="true">{tone === 'error' ? '!' : tone === 'record' ? '●' : 'i'}</span>
     <p>{message}</p>
