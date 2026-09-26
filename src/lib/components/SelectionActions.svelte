@@ -14,12 +14,25 @@
       ),
   );
   const canRoll = $derived(hasSelection && selected.every((clip) => clip.kind === 'hit'));
+  /** Why a greyed action is greyed, so the precondition is visible without hovering. */
+  const hint = $derived(
+    !hasSelection
+      ? 'Click a clip, drag across several, or long-press on a phone to select.'
+      : !canSplit && !canRoll
+        ? 'Split needs the playhead inside a selected loop. Roll applies to hits.'
+        : !canSplit
+          ? 'Split needs the playhead inside a selected loop.'
+          : !canRoll
+            ? 'Roll applies to hits.'
+            : '',
+  );
 </script>
 
 <section aria-label="Selection actions" class="actions">
   <div class="selection-status">
     <span aria-hidden="true">⌗</span>
     <strong>{selected.length ? `${selected.length} selected` : 'No selection'}</strong>
+    {#if hint}<span class="hint">{hint}</span>{/if}
   </div>
   <div class="action-buttons">
     <button
@@ -84,9 +97,13 @@
     color: var(--audle-text-muted);
     font-size: 0.76rem;
   }
-  .selection-status span {
+  .selection-status > span:first-child {
     color: var(--audle-selection-light);
     font-size: 1rem;
+  }
+  .hint {
+    margin-inline-start: 6px;
+    color: var(--audle-text-dim);
   }
   .action-buttons,
   .rolls {

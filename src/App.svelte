@@ -377,8 +377,10 @@
           {/if}
           <JevJam {editor} />
           <TimelineEditor {editor} />
-          <SelectionActions {editor} />
-          <TransportBar {editor} onShare={() => void shareComposition(editor.composition)} />
+          <div class="dock">
+            <SelectionActions {editor} />
+            <TransportBar {editor} onShare={() => void shareComposition(editor.composition)} />
+          </div>
         </div>
         <TuningDeck {editor} />
       </section>
@@ -392,12 +394,14 @@
     <section class="maker-workspace tutorial-workspace">
       <PadBank {challenge} editor={tutorial} />
       <div class="arrangement">
-        <JevJam editor={tutorial} /><TimelineEditor editor={tutorial} /><SelectionActions
-          editor={tutorial}
-        /><TransportBar
-          editor={tutorial}
-          onShare={() => void shareComposition(tutorial!.composition)}
-        />
+        <JevJam editor={tutorial} /><TimelineEditor editor={tutorial} />
+        <div class="dock">
+          <SelectionActions editor={tutorial} />
+          <TransportBar
+            editor={tutorial}
+            onShare={() => void shareComposition(tutorial!.composition)}
+          />
+        </div>
       </div>
       <TuningDeck editor={tutorial} />
     </section>
@@ -512,6 +516,15 @@
     align-content: start;
     gap: 10px;
     min-inline-size: 0;
+  }
+  /* Selection actions and transport stay in reach below sixteen lanes at every width. */
+  .dock {
+    position: sticky;
+    inset-block-end: env(safe-area-inset-bottom, 0px);
+    z-index: 10;
+    display: grid;
+    background: var(--audle-deck);
+    box-shadow: 0 -8px 24px oklch(0.05 0.01 232 / 0.55);
   }
   .empty-arrangement {
     display: grid;

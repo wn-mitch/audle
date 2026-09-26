@@ -111,8 +111,9 @@ export class EditorState {
   private captureEvents: PerformanceEvent[] = [];
   private captureHistory: { undo: CompositionV1[]; redo: CompositionV1[] } | undefined;
 
-  private undoStack: CompositionV1[] = [];
-  private redoStack: CompositionV1[] = [];
+  // Reactive so the transport's Undo and Redo buttons follow every edit on their own.
+  private undoStack = $state.raw<CompositionV1[]>([]);
+  private redoStack = $state.raw<CompositionV1[]>([]);
   private saveTimer: number | undefined;
   private controlBaseline: CompositionV1 | undefined;
   private readonly unsubscribeTransport: Unsubscribe;
