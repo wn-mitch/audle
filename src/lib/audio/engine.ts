@@ -49,6 +49,8 @@ export interface AudioEngine {
   subscribeHits(listener: (hit: HitEvent) => void): Unsubscribe;
   /** The transport position right now, for frame-rate readouts between transport snapshots. */
   currentTick(): number;
+  /** Each track's current output level from 0 to 1, computed only when asked. */
+  trackLevels(): Record<string, number>;
   dispose(): void;
 }
 
@@ -62,6 +64,15 @@ type TrackNodes = {
   filter: Tone.Filter;
   panner: Tone.Panner;
   gain: Tone.Gain;
+  /** Taps the track after its gain, so a muted track reads as silent. */
+  meter: Tone.Meter;
+};
+
+const disposeTrackNodes = (nodes: TrackNodes): void => {
+  nodes.filter.dispose();
+  nodes.panner.dispose();
+  nodes.gain.dispose();
+  nodes.meter.dispose();
 };
 
 type ScheduledEvent = {
@@ -354,6 +365,15 @@ export class ToneAudioEngine implements AudioEngine {
     return this.transport.ticks;
   }
 
+  trackLevels(): Record<string, number> {
+    const levels: Record<string, number> = {};
+    for (const [trackId, nodes] of this.nodes) {
+      const value = nodes.meter.getValue();
+      levels[trackId] = Math.min(1, Array.isArray(value) ? Math.max(...value) : value);
+    }
+    return levels;
+  }
+
   debug(): {
     audioState: AudioContextState;
     transportTick: number;
@@ -386,11 +406,7 @@ export class ToneAudioEngine implements AudioEngine {
     this.transport.clear(this.transportListenerId);
     this.part?.dispose();
     this.part = undefined;
-    for (const nodes of this.nodes.values()) {
-      nodes.filter.dispose();
-      nodes.panner.dispose();
-      nodes.gain.dispose();
-    }
+    for (const nodes of this.nodes.values()) disposeTrackNodes(nodes);
     this.nodes.clear();
     for (const buffer of this.buffers.values()) buffer.dispose();
     this.buffers.clear();
@@ -429,9 +445,7 @@ export class ToneAudioEngine implements AudioEngine {
     const currentIds = new Set(composition.tracks.map((track) => track.id));
     for (const [trackId, nodes] of this.nodes) {
       if (!currentIds.has(trackId)) {
-        nodes.filter.dispose();
-        nodes.panner.dispose();
-        nodes.gain.dispose();
+        disposeTrackNodes(nodes);
         this.nodes.delete(trackId);
       }
     }
@@ -440,8 +454,10 @@ export class ToneAudioEngine implements AudioEngine {
       const filter = new Tone.Filter({ type: 'lowpass', frequency: track.controls.cutoffHz });
       const panner = new Tone.Panner(track.controls.pan);
       const gain = new Tone.Gain();
+      const meter = new Tone.Meter({ normalRange: true, smoothing: 0.85 });
       filter.chain(panner, gain, this.limiter);
-      this.nodes.set(track.id, { filter, panner, gain });
+      gain.connect(meter);
+      this.nodes.set(track.id, { filter, panner, gain, meter });
     }
     this.applyTrackControlValues();
   }

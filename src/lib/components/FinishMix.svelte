@@ -3,6 +3,7 @@
   import type { EditorState } from '../state/editor.svelte';
   import type { PerformanceV1 } from '../domain/performance';
   import { SOURCES_PER_DAY } from '../domain/model';
+  import { motion, subscribeFrame } from '../motion';
 
   let {
     editor,
@@ -17,6 +18,19 @@
   } = $props();
   let exporting = $state(false);
   let exportError = $state('');
+  /** Live output per track. Polled every frame while the loop plays with motion allowed;
+   * otherwise refreshed with each transport snapshot so the meter still reads. */
+  let levels = $state<Record<string, number>>({});
+  $effect(() => {
+    if (editor.playing && motion.allowed) {
+      return subscribeFrame(() => {
+        levels = editor.trackLevels();
+      });
+    }
+    void editor.playheadTick;
+    levels = editor.playing ? editor.trackLevels() : {};
+  });
+  const meterHeight = (trackId: string) => `${Math.round(12 + (levels[trackId] ?? 0) * 88)}%`;
   const active = $derived(editor.composition.tracks.filter((track) => track.clips.length));
   const captureSeconds = $derived(
     editor.performance
@@ -64,9 +78,9 @@
         {editor.composition.bars === 1 ? 'bar' : 'bars'}. Ready to play, share or download.
       </p>
       <div class="meter" aria-hidden="true">
-        {#each editor.composition.tracks.slice(0, SOURCES_PER_DAY) as track, index (track.id)}<span
+        {#each editor.composition.tracks.slice(0, SOURCES_PER_DAY) as track (track.id)}<span
             class:lit={track.clips.length > 0 && !track.controls.muted}
-            style={`--height:${[54, 76, 38, 92, 65, 43, 82, 58, 47, 88, 60, 35, 71, 52, 84, 45][index]}%`}
+            style:--height={meterHeight(track.id)}
           ></span>{/each}
       </div>
       <div class="card-actions">
@@ -236,6 +250,8 @@
     block-size: var(--height);
     border: 1px solid var(--audle-outline);
     background: var(--audle-control);
+    /* Levels decay through a short transition; the rise is immediate from the frame poll. */
+    transition: block-size 120ms ease-out;
   }
   .meter span.lit {
     background: var(--audle-accent-dim);

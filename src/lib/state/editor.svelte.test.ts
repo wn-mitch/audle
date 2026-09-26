@@ -82,6 +82,9 @@ class FakeAudioEngine implements AudioEngine {
   currentTick(): number {
     return this.tick;
   }
+  trackLevels(): Record<string, number> {
+    return {};
+  }
   emitHit(hit: HitEvent): void {
     for (const listener of this.hitListeners) listener(hit);
   }

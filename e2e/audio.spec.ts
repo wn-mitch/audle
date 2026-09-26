@@ -103,3 +103,19 @@ test('Offset shifts the selected pattern one step and the strip follows', async 
   await page.getByRole('button', { name: 'Offset pattern one step earlier' }).click();
   await expect(steps.nth(15)).toHaveClass(/hit/);
 });
+
+test('Finish meters follow the loop’s output and rest when it stops', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('.sound-object').first().click();
+  await page.getByRole('button', { name: 'Finish', exact: true }).click();
+  await expect.poll(() => outputRms(page)).toBeGreaterThan(0.000001);
+  const heights = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('.meter span')].map((span) =>
+        Number.parseInt(span.style.getPropertyValue('--height'), 10),
+      ),
+    );
+  await expect.poll(async () => Math.max(...(await heights()))).toBeGreaterThan(12);
+  await page.getByRole('button', { name: /Stop loop/ }).click();
+  await expect.poll(async () => Math.max(...(await heights()))).toBe(12);
+});

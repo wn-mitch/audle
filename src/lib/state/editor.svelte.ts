@@ -146,6 +146,11 @@ export class EditorState {
     return this.engine.currentTick();
   }
 
+  /** Each track's live output level, for meters that poll at frame rate. */
+  trackLevels(): Record<string, number> {
+    return this.engine.trackLevels();
+  }
+
   get selectedTrack() {
     return this.composition.tracks.find((track) => track.id === this.selectedTrackId);
   }
