@@ -4,6 +4,7 @@
   import type { ChallengeSnapshot } from '../domain/model';
   import { enter, flashHit, press } from '../motion';
   import type { EditorState } from '../state/editor.svelte';
+  import Icon from './Icon.svelte';
 
   let { challenge, editor }: { challenge: ChallengeSnapshot; editor: EditorState } = $props();
   let bank: HTMLElement;
@@ -50,7 +51,9 @@
           }
         }}
       >
-        <span aria-hidden="true" class="pad-glyph glyph">{sample.kind === 'loop' ? '↻' : '●'}</span>
+        <span aria-hidden="true" class="pad-glyph glyph"
+          ><Icon name={sample.kind === 'loop' ? 'loop' : 'hit'} size={18} /></span
+        >
         <span class="pad-name">{editor.loading ? 'Loading' : sample.label}</span>
         <span class="pad-kind">{sample.kind === 'loop' ? 'Loop' : 'Hit'}</span>
       </button>
@@ -162,9 +165,9 @@
     background: var(--audle-control);
   }
   .pad-glyph {
+    display: inline-flex;
     grid-row: span 2;
     color: var(--audle-one-shot-light);
-    font-size: 1.25rem;
   }
   .loop .pad-glyph {
     color: var(--audle-loop-light);
@@ -195,6 +198,22 @@
     background: var(--audle-record-surface);
     color: var(--audle-text);
     cursor: pointer;
+  }
+  /* On a phone the bank is a horizontal strip beneath the timeline, so it never pushes the lanes
+     two screens down. */
+  @media (max-width: 959px) {
+    .pads {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      padding-block-end: 4px;
+      scroll-snap-type: x proximity;
+    }
+    .pad {
+      flex: 0 0 148px;
+      scroll-snap-align: start;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .pad {

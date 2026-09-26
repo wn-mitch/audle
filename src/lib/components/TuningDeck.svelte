@@ -16,8 +16,8 @@
 
 <section class="tuning" aria-labelledby="tuning-title">
   <div class="section-heading">
-    <p>Selected voice</p>
-    <h2 id="tuning-title">{track?.label ?? 'Choose a track'}</h2>
+    <p>Selected sound</p>
+    <h2 id="tuning-title">{track?.label ?? 'Pick a sound'}</h2>
   </div>
   {#if track}
     <div class="knobs">
@@ -95,7 +95,7 @@
       {/if}
     </div>
   {:else}
-    <p class="empty">Select a clip or lane to tune its voice.</p>
+    <p class="empty">Tap a clip or lane to tune that sound.</p>
   {/if}
 </section>
 

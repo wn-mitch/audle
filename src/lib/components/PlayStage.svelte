@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { enter, flashHit, meterKick, motion, popOn, press, pulseBeat, rise } from '../motion';
+  import Icon from './Icon.svelte';
   import { LIVE_PATTERNS, type LivePattern } from '../domain/live';
   import { sampleById } from '../data/samples';
   import { SOURCES_PER_DAY } from '../domain/model';
@@ -21,12 +22,21 @@
   let {
     editor,
     onArrange,
-    onFinish,
+    onShare,
+    onTakeSaved,
   }: {
     editor: EditorState;
     onArrange: () => void;
-    onFinish: () => void;
+    onShare: () => void;
+    /** Called once a take has been saved, so the app can offer to play or share it. */
+    onTakeSaved: () => void;
   } = $props();
+
+  const saveTake = () => {
+    const wasRecording = editor.captureStatus === 'recording';
+    editor.stopCapture();
+    if (wasRecording && editor.performance) onTakeSaved();
+  };
   let stage: HTMLElement;
   const tracks = $derived(editor.composition.tracks.slice(0, SOURCES_PER_DAY));
   const selected = $derived(
@@ -87,16 +97,19 @@
         >{editor.captureStatus === 'count-in'
           ? 'COUNTING IN · STARTS NEXT BAR'
           : 'LIVE TAKE · RECORDING'}</strong
-      ><span>Switch sounds on the field to shape your take.</span><button
-        type="button"
-        onclick={() => editor.stopCapture()}
-        >{editor.captureStatus === 'count-in' ? 'Cancel' : 'Save take'} →</button
+      ><span
+        >{editor.captureStatus === 'count-in'
+          ? 'Switch sounds on the field once it starts.'
+          : 'Switch sounds on the field to shape your take, then save it below.'}</span
       >
     </div>
   {/if}
   <div class="stage-frame" bind:this={stage}>
     <div class="stage-topline">
-      <span>{activeCount.toString().padStart(2, '0')} LIVE <i class:lit={editor.playing}></i></span>
+      <span
+        >{editor.loading ? 'DECODING SOUNDS' : `${activeCount.toString().padStart(2, '0')} LIVE`}
+        <i class:lit={editor.playing}></i></span
+      >
     </div>
     <div class="objects">
       {#each tracks as track, index (track.id)}
@@ -228,7 +241,7 @@
     </div>
     {#if selected}
       <details class="fine-tune">
-        <summary>Fine-tune <span>↗</span></summary>
+        <summary>Fine-tune <Icon name="chevron-down" size={14} /></summary>
         <fieldset
           disabled={editor.captureStatus !== 'idle' || editor.playingPerformance}
           class="tune-fields"
@@ -302,19 +315,45 @@
   </section>
 
   <div class="play-footer">
-    <button
-      class="transport"
-      type="button"
-      disabled={editor.loading || !!editor.loadingError}
-      onclick={() => void editor.togglePlayback()}
-      >{editor.playing ? '■  Stop loop' : '▶  Play loop'}</button
-    >
-    <div class="next-actions">
-      <button type="button" onclick={onArrange}>Arrange <span>↗</span></button><button
+    <div class="footer-main">
+      <button
+        class="transport"
         type="button"
-        class="finish"
+        disabled={editor.loading || !!editor.loadingError}
+        use:press
+        onclick={() => void editor.togglePlayback()}
+        >{#if editor.playing}<Icon name="stop" /> Stop loop{:else}<Icon name="play" /> Play loop{/if}</button
+      >
+      <button
+        class="record"
+        class:armed={editor.captureStatus !== 'idle'}
+        type="button"
+        aria-pressed={editor.captureStatus !== 'idle'}
+        disabled={editor.loading ||
+          !!editor.loadingError ||
+          editor.playingPerformance ||
+          !editor.composition.tracks.some((track) => track.clips.length)}
+        use:press
+        onclick={() => (editor.captureStatus === 'idle' ? void editor.startCapture() : saveTake())}
+        ><Icon name="record" />
+        {editor.captureStatus === 'idle'
+          ? editor.performance
+            ? 'Record new take'
+            : 'Record a take'
+          : editor.captureStatus === 'count-in'
+            ? 'Cancel count-in'
+            : 'Save take'}</button
+      >
+    </div>
+    <div class="next-actions">
+      <button
+        type="button"
+        class="share"
         disabled={!editor.composition.tracks.some((track) => track.clips.length)}
-        onclick={onFinish}>Finish <span>→</span></button
+        use:press
+        onclick={onShare}><Icon name="share" /> Share</button
+      ><button type="button" aria-label="Go to Arrange" use:press onclick={onArrange}
+        >Arrange <Icon name="arrow-right" /></button
       >
     </div>
   </div>
@@ -347,15 +386,6 @@
   .capture-banner span:not(.capture-light) {
     color: var(--audle-text-muted);
   }
-  .capture-banner button {
-    min-block-size: 40px;
-    margin-inline-start: auto;
-    padding: 0 12px;
-    border: 1px solid var(--audle-record-light);
-    background: var(--audle-record-surface);
-    color: var(--audle-text);
-    cursor: pointer;
-  }
   .capture-light {
     inline-size: 9px;
     block-size: 9px;
@@ -386,9 +416,7 @@
     position: relative;
     border: 1px solid var(--audle-outline);
     background: var(--audle-deck-raised);
-    box-shadow:
-      0 22px 80px #0006,
-      inset 0 1px var(--audle-edge-light);
+    box-shadow: var(--audle-deck-edge);
   }
   .stage-topline {
     position: relative;
@@ -751,8 +779,8 @@
     color: var(--audle-text-muted);
     font-size: 0.82rem;
   }
-  .fine-tune summary span {
-    margin-inline-start: 8px;
+  .fine-tune summary :global(.icon) {
+    margin-inline-start: 6px;
   }
   .tune-fields {
     display: flex;
@@ -851,10 +879,14 @@
     padding-top: 20px;
   }
   .play-footer button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     min-block-size: 48px;
-    padding: 0 21px;
-    border: 1px solid var(--audle-accent-dim);
-    background: var(--audle-playback-surface);
+    padding: 0 18px;
+    border: 1px solid var(--audle-outline);
+    background: var(--audle-control);
+    box-shadow: var(--audle-control-rest);
     color: var(--audle-text);
     cursor: pointer;
     font-weight: 700;
@@ -863,17 +895,26 @@
     opacity: 0.45;
     cursor: not-allowed;
   }
+  /* Playing the loop is the primary action on this screen. */
+  .play-footer .transport {
+    border-color: var(--audle-accent);
+    background: var(--audle-accent);
+    color: var(--audle-accent-ink);
+  }
+  .play-footer .record :global(.icon) {
+    color: var(--audle-record-light);
+  }
+  .play-footer .record.armed {
+    border-color: var(--audle-record-light);
+    background: var(--audle-record-surface);
+  }
+  .play-footer .share {
+    border-color: var(--audle-accent-dim);
+  }
+  .footer-main,
   .next-actions {
     display: flex;
     gap: 8px;
-  }
-  .next-actions .finish {
-    background: var(--audle-accent);
-    color: var(--audle-accent-ink);
-    border-color: var(--audle-accent);
-  }
-  .next-actions span {
-    margin-inline-start: 12px;
   }
   @media (max-width: 720px) {
     .play-world {
@@ -894,14 +935,16 @@
     }
     .object-number {
       gap: 6px;
-      font-size: 0.6rem;
+      letter-spacing: 0.04em;
     }
     .object-bottom strong {
-      font-size: 0.68rem;
+      font-size: 0.7rem;
       letter-spacing: -0.01em;
     }
     .glyph .shape {
-      transform: scale(0.46);
+      inline-size: 40px;
+      block-size: 40px;
+      transform: none;
     }
     .stage-topline {
       padding: 12px;
@@ -926,15 +969,14 @@
     .play-footer {
       flex-wrap: wrap;
     }
-    .play-footer .transport {
-      flex: 1;
-    }
+    .footer-main,
     .next-actions {
-      flex: 2;
+      flex: 1 1 100%;
     }
-    .next-actions button {
+    .play-footer button {
       flex: 1;
-      padding-inline: 12px;
+      justify-content: center;
+      padding-inline: 10px;
     }
   }
   @media (prefers-reduced-motion: reduce) {

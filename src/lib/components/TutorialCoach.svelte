@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { EditorState } from '../state/editor.svelte';
   import { SOURCES_PER_DAY } from '../domain/model';
+  import Icon from './Icon.svelte';
 
   let {
     editor,
@@ -82,7 +83,9 @@
   <ol aria-label="Tutorial progress">
     {#each instructions as instruction, index (instruction)}
       <li class:complete={index < step} class:current={index === step}>
-        <span>{index < step ? '✓' : index + 1}</span>{instruction}
+        <span
+          >{#if index < step}<Icon name="check" size={12} />{:else}{index + 1}{/if}</span
+        >{instruction}
       </li>
     {/each}
   </ol>

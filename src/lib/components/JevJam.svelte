@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { EditorState } from '../state/editor.svelte';
   import { SOURCES_PER_DAY } from '../domain/model';
+  import Icon from './Icon.svelte';
 
   let { editor }: { editor: EditorState } = $props();
   let vibe = $state('');
@@ -29,7 +30,7 @@
       : 'Every track has clips. Clear one to let Jev jam.'}
     type="submit"
   >
-    <span aria-hidden="true">✦</span>
+    <span class="spark" aria-hidden="true"><Icon name="spark" /></span>
     {editor.jamming ? 'Jev is jamming…' : 'Jam with Jev'}
   </button>
 </form>
@@ -80,7 +81,8 @@
     font-weight: 700;
     white-space: nowrap;
   }
-  button span {
+  .spark {
+    display: inline-flex;
     color: var(--audle-loop-light);
   }
   button:hover:not(:disabled) {
@@ -93,7 +95,7 @@
     color: var(--audle-disabled-ink);
     cursor: not-allowed;
   }
-  button[aria-busy='true'] span {
+  button[aria-busy='true'] .spark {
     animation: spin 900ms linear infinite;
   }
   @keyframes spin {
@@ -102,7 +104,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    button[aria-busy='true'] span {
+    button[aria-busy='true'] .spark {
       animation: none;
     }
   }

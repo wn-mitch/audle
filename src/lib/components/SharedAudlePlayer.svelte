@@ -1,5 +1,7 @@
 <script lang="ts">
   import { SOURCES_PER_DAY, type CompositionV1 } from '../domain/model';
+  import { press } from '../motion';
+  import Icon from './Icon.svelte';
   import type { PerformanceV1 } from '../domain/performance';
 
   let {
@@ -9,6 +11,7 @@
     picked,
     onPlay,
     onPick,
+    onRemix,
     onBack,
   }: {
     composition: CompositionV1;
@@ -17,6 +20,8 @@
     picked: boolean;
     onPlay: () => void;
     onPick: () => void;
+    /** Brings this loop into the maker's own Arrange as a draft. */
+    onRemix: () => void;
     onBack: () => void;
   } = $props();
   const clipCount = $derived(
@@ -26,7 +31,9 @@
 
 <section class="shared" aria-labelledby="shared-title">
   <header>
-    <button class="back" type="button" onclick={onBack}>← Back to Make</button>
+    <button class="back" type="button" onclick={onBack}
+      ><Icon name="arrow-left" /> Back to Play</button
+    >
     <p>Shared Audle</p>
     <h1 id="shared-title">{performance ? 'A live take' : 'Made for this moment'}</h1>
     <span
@@ -42,9 +49,22 @@
       class:playing
       class="play"
       type="button"
-      onclick={onPlay}>{playing ? '■ Stop' : performance ? '▶ Play take' : '▶ Play'}</button
+      use:press
+      onclick={onPlay}
+      >{#if playing}<Icon name="stop" /> Stop{:else}<Icon name="play" />
+        {performance ? 'Play take' : 'Play'}{/if}</button
     >
-    <button aria-pressed={picked} class:picked type="button" onclick={onPick}>✓ Your pick</button>
+    <button type="button" class="remix" use:press onclick={onRemix}
+      ><Icon name="arrow-right" /> Remix this</button
+    >
+    <button
+      aria-pressed={picked}
+      class:picked
+      type="button"
+      title="Mark this as your favourite for today"
+      use:press
+      onclick={onPick}><Icon name="check" /> Your pick</button
+    >
   </div>
   <dl>
     <div>
@@ -83,28 +103,31 @@
     padding: clamp(20px, 5vw, 48px);
   }
   .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     min-block-size: 44px;
+    padding: 0;
     border: 0;
     background: transparent;
     color: var(--audle-text-muted);
     cursor: pointer;
+    font-weight: 700;
   }
   header {
     padding-block-end: 28px;
     border-block-end: 1px solid var(--audle-outline);
   }
   header p {
-    margin: 20px 0 5px;
-    color: var(--audle-selection-light);
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    margin: 20px 0 4px;
+    color: var(--audle-text-muted);
+    font-size: 0.8rem;
+    font-weight: 700;
   }
   h1 {
     margin: 0;
-    font-size: clamp(2rem, 7vw, 4.5rem);
-    letter-spacing: -0.06em;
+    font-size: 1.75rem;
+    letter-spacing: -0.02em;
   }
   header span {
     display: block;
@@ -117,6 +140,9 @@
     padding-block: 18px;
   }
   .shared-controls button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     min-block-size: 48px;
     padding-inline: 16px;
     border: 1px solid var(--audle-outline);
@@ -130,8 +156,14 @@
     background: var(--audle-playback-surface);
     border-color: var(--audle-playback-light);
   }
+  .shared-controls .remix {
+    border-color: var(--audle-accent);
+    background: var(--audle-accent);
+    color: var(--audle-accent-ink);
+  }
   .shared-controls .picked {
-    border-color: var(--audle-selection-light);
+    border-color: var(--audle-accent-dim);
+    background: var(--audle-playback-surface);
   }
   dl {
     display: grid;

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { press } from '../motion';
+  import Icon from './Icon.svelte';
   import type { EditorState } from '../state/editor.svelte';
 
   let { editor, onShare }: { editor: EditorState; onShare: () => void } = $props();
@@ -15,7 +16,7 @@
       type="button"
       onclick={() => void editor.togglePlayback()}
     >
-      <span aria-hidden="true">{editor.playing ? '■' : '▶'}</span>
+      <Icon name={editor.playing ? 'stop' : 'play'} />
       {editor.playing ? 'Stop' : 'Play'}
     </button>
     <button
@@ -26,7 +27,7 @@
       type="button"
       onclick={() => void editor.toggleRecording()}
     >
-      <span aria-hidden="true">●</span>
+      <Icon name="record" />
       {editor.recording ? 'Recording' : 'Record'}
     </button>
     <div class="bars" role="group" aria-label="Loop length in bars">
@@ -46,12 +47,14 @@
   </div>
   <div class="transport-secondary">
     <button aria-label="Undo" disabled={!editor.canUndo} type="button" onclick={() => editor.undo()}
-      >↶ Undo</button
+      ><Icon name="undo" /> Undo</button
     >
     <button aria-label="Redo" disabled={!editor.canRedo} type="button" onclick={() => editor.redo()}
-      >↷ Redo</button
+      ><Icon name="redo" /> Redo</button
     >
-    <button class="share" type="button" onclick={onShare}>↗ Share</button>
+    <button class="share" type="button" use:press onclick={onShare}
+      ><Icon name="share" /> Share</button
+    >
   </div>
 </nav>
 
@@ -64,7 +67,6 @@
     padding: 10px;
     background: var(--audle-deck);
     border-block-start: 1px solid var(--audle-outline);
-    box-shadow: var(--audle-deck-edge);
   }
   .transport-main,
   .transport-secondary {
@@ -73,6 +75,10 @@
     gap: 8px;
   }
   button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
     min-block-size: 48px;
     border: 1px solid var(--audle-outline);
     background: var(--audle-control);
@@ -104,11 +110,11 @@
       inset 0 0 0 1px var(--audle-record-light),
       var(--audle-control-contact);
   }
-  button.record.recording span {
+  button.record :global(.icon) {
     color: var(--audle-record-light);
   }
   button.share {
-    border-color: var(--audle-selection-light);
+    border-color: var(--audle-accent-dim);
   }
   .bars {
     display: grid;

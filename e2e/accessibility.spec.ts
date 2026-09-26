@@ -26,7 +26,7 @@ const expectNoSeriousViolations = async (page: Page) => {
   ).toEqual([]);
 };
 
-test('keeps Play, Arrange, Finish, and Help free of serious accessibility violations', async ({
+test('keeps Play, Arrange, the share sheet, and Help free of serious accessibility violations', async ({
   page,
 }) => {
   await page.goto('/');
@@ -36,8 +36,10 @@ test('keeps Play, Arrange, Finish, and Help free of serious accessibility violat
   await page.getByRole('button', { name: 'Remix today’s starter' }).click();
   await expectNoSeriousViolations(page);
 
-  await page.getByRole('button', { name: 'Finish', exact: true }).click();
+  await page.getByRole('button', { name: 'Share', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Share' })).toBeVisible();
   await expectNoSeriousViolations(page);
+  await page.getByRole('button', { name: 'Close' }).click();
 
   await page.getByRole('button', { name: 'Help' }).click();
   await expectNoSeriousViolations(page);

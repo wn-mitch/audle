@@ -1,18 +1,18 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount } from 'svelte';
   import { ToneAudioEngine, type HitEvent } from './lib/audio/engine';
-  import PlayStage from './lib/components/PlayStage.svelte';
-  import FinishMix from './lib/components/FinishMix.svelte';
-  import TutorialCoach from './lib/components/TutorialCoach.svelte';
+  import Icon from './lib/components/Icon.svelte';
   import JevJam from './lib/components/JevJam.svelte';
-  import ListenGallery from './lib/components/ListenGallery.svelte';
   import PadBank from './lib/components/PadBank.svelte';
+  import PlayStage from './lib/components/PlayStage.svelte';
   import SelectionActions from './lib/components/SelectionActions.svelte';
   import SharedAudlePlayer from './lib/components/SharedAudlePlayer.svelte';
+  import ShareSheet from './lib/components/ShareSheet.svelte';
   import StatusNotice from './lib/components/StatusNotice.svelte';
   import TimelineEditor from './lib/components/TimelineEditor.svelte';
   import TransportBar from './lib/components/TransportBar.svelte';
   import TuningDeck from './lib/components/TuningDeck.svelte';
+  import TutorialCoach from './lib/components/TutorialCoach.svelte';
   import { examplesForChallenge, starterForChallenge } from './lib/data/examples';
   import { challengeForDate } from './lib/domain/challenge';
   import {
@@ -24,47 +24,66 @@
   } from './lib/domain/share-codec';
   import type { CompositionV1 } from './lib/domain/model';
   import type { PerformanceV1, SharedAudle } from './lib/domain/performance';
+  import { press, rise, watchMotionPreference } from './lib/motion';
   import {
     loadFavorite,
     loadImports,
-    loadTutorialComplete,
     saveFavorite,
     saveImport,
     saveTutorialComplete,
   } from './lib/state/persistence';
   import { EditorState } from './lib/state/editor.svelte';
-  import { rise, watchMotionPreference } from './lib/motion';
 
-  type View = 'maker' | 'listen' | 'shared' | 'tutorial';
+  type View = 'maker' | 'shared' | 'tutorial';
 
-  const today = new Date().toISOString().slice(0, 10);
+  /** The kit changes at the maker's local midnight, so the day is read in local time. */
+  const localDate = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const today = localDate(new Date());
   const challenge = challengeForDate(today);
   const engine = new ToneAudioEngine();
   const editor = new EditorState(engine, challenge);
   const examples = examplesForChallenge(challenge);
+  const EXAMPLE_NAMES = ['Four on the floor', 'Syncopated', 'Four-bar build'];
+  const TAKE_SAVED = 'Take saved.';
+  const kitLabel = new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date(`${today}T12:00:00`));
 
   let view = $state<View>('maker');
-  let makerMode = $state<'play' | 'arrange' | 'finish'>('play');
+  let makerMode = $state<'play' | 'arrange'>('play');
   let tutorial = $state<EditorState | undefined>(undefined);
   let tutorialCanKeep = $state(false);
-  let tutorialOffered = $state(false);
   let shared = $state<SharedAudle | undefined>(undefined);
   let sharedError = $state<string | undefined>(undefined);
   let sharedImported = $state<CompositionV1[]>([]);
   let sharedPicked = $state(false);
+  let shareOpen = $state(false);
   let shareFallback = $state<string | undefined>(undefined);
-  let shareInput = $state<HTMLInputElement | undefined>(undefined);
   let countdown = $state('');
 
   const makerHasClips = $derived(editor.composition.tracks.some((track) => track.clips.length > 0));
+  const noticeActions = $derived(
+    editor.notice === TAKE_SAVED
+      ? [
+          { label: 'Play it', onClick: () => void editor.playCapture() },
+          { label: 'Share it', onClick: () => openShare() },
+        ]
+      : [],
+  );
 
   const updateCountdown = () => {
-    const next = new Date(`${today}T00:00:00.000Z`);
-    next.setUTCDate(next.getUTCDate() + 1);
+    const next = new Date();
+    next.setHours(24, 0, 0, 0);
     const remaining = Math.max(0, next.getTime() - Date.now());
     const hours = Math.floor(remaining / 3_600_000);
     const minutes = Math.floor((remaining % 3_600_000) / 60_000);
-    countdown = `${hours}h ${minutes.toString().padStart(2, '0')}m to next kit`;
+    countdown =
+      hours === 0
+        ? `${minutes}m until tomorrow’s kit`
+        : `${hours}h ${minutes}m until tomorrow’s kit`;
   };
 
   const refreshImports = () => {
@@ -78,16 +97,17 @@
       history.replaceState(null, '', `${location.pathname}${location.search}`);
   };
 
-  const leaveShared = (nextView: 'maker' | 'listen') => {
+  const leaveShared = () => {
     editor.stopPlayback();
     shared = undefined;
     sharedError = undefined;
     resetHash();
-    view = nextView;
+    view = 'maker';
     void editor.loadAudio();
   };
-  const showMaker = (mode: 'play' | 'arrange' | 'finish') => {
-    if (view !== 'maker') leaveShared('maker');
+  const showMaker = (mode: 'play' | 'arrange') => {
+    if (view === 'tutorial') return finishTutorial(false, mode);
+    if (view !== 'maker') leaveShared();
     if (mode === 'arrange') {
       if (editor.captureStatus !== 'idle') editor.stopCapture();
       if (editor.playingPerformance) editor.stopCapturePlayback();
@@ -95,7 +115,17 @@
     makerMode = mode;
   };
 
+  const openShare = () => {
+    shareFallback = undefined;
+    shareOpen = true;
+  };
+  const closeShare = () => {
+    shareOpen = false;
+    shareFallback = undefined;
+  };
+
   const openShared = (composition: CompositionV1) => {
+    closeShare();
     editor.stopPlayback();
     shared = { composition };
     sharedError = undefined;
@@ -106,11 +136,20 @@
     });
   };
 
+  /** Brings a shared loop into Arrange as the maker's own draft. */
+  const remixShared = () => {
+    if (!shared) return;
+    const composition = shared.composition;
+    leaveShared();
+    makerMode = 'arrange';
+    editor.importComposition(composition);
+  };
+
   const readSharedFragment = () => {
     const fragment = location.hash;
     if (!fragment.startsWith('#audle=')) return;
     editor.stopPlayback();
-    shareFallback = undefined;
+    closeShare();
     const payload = fragment.slice('#audle='.length);
     const result = decodeShared(payload);
     view = 'shared';
@@ -130,13 +169,6 @@
     void fingerprintForComposition(result.value.composition).then((fingerprint) => {
       sharedPicked = loadFavorite(result.value.composition.challenge.date) === fingerprint;
     });
-  };
-
-  const openListen = () => {
-    editor.stopPlayback();
-    resetHash();
-    view = 'listen';
-    refreshImports();
   };
 
   /** Asks `/api/share` to hold the payload behind a short link. Sharing falls back to the
@@ -166,7 +198,8 @@
       if (navigator.share) {
         try {
           await navigator.share({ title: 'Audle', text: 'Play this Audle.', url });
-          editor.notice = 'Your Audle is ready to share.';
+          closeShare();
+          editor.notice = `Your Audle is on its way. ${countdown}.`;
           return;
         } catch (error) {
           if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -174,12 +207,11 @@
       }
       try {
         await navigator.clipboard.writeText(url);
-        editor.notice = 'Link copied. Send the beat.';
+        closeShare();
+        editor.notice = `Link copied. Send the beat. ${countdown}.`;
       } catch {
         shareFallback = url;
-        await tick();
-        shareInput?.focus();
-        shareInput?.select();
+        shareOpen = true;
       }
     } catch (error) {
       editor.notice =
@@ -190,6 +222,9 @@
   };
 
   const startTutorial = () => {
+    if (view === 'tutorial') return;
+    if (view === 'shared') leaveShared();
+    closeShare();
     editor.stopPlayback();
     tutorialCanKeep = !makerHasClips;
     tutorial = new EditorState(engine, challenge, starterForChallenge(challenge));
@@ -197,16 +232,16 @@
     void tutorial.loadAudio();
   };
 
-  const finishTutorial = (keep: boolean) => {
+  const finishTutorial = (keep: boolean, mode: 'play' | 'arrange' = makerMode) => {
     const finished = tutorial;
     if (!finished) return;
     saveTutorialComplete();
-    tutorialOffered = false;
     engine.stop();
     if (keep && tutorialCanKeep) editor.importComposition(finished.composition);
     finished.detach();
     tutorial = undefined;
     view = 'maker';
+    makerMode = mode;
     void editor.loadAudio();
   };
 
@@ -242,7 +277,6 @@
     updateCountdown();
     const stopMotionWatch = watchMotionPreference();
     const clock = window.setInterval(updateCountdown, 30_000);
-    tutorialOffered = !loadTutorialComplete();
     refreshImports();
     readSharedFragment();
     window.addEventListener('hashchange', readSharedFragment);
@@ -280,11 +314,11 @@
 <main class="app-shell">
   <header class="deck-top">
     <button class="wordmark" type="button" onclick={() => showMaker('play')}>Audle</button>
-    <div class="daily-readout">
-      <strong>{challenge.date}</strong><span
-        >{challenge.bpm} BPM · {challenge.key.root} {challenge.key.mode}</span
+    <p class="daily-readout">
+      <span
+        >Kit for {kitLabel} · {challenge.bpm} BPM · {challenge.key.root} {challenge.key.mode}</span
       ><small>{countdown}</small>
-    </div>
+    </p>
     <nav aria-label="Audle views">
       <button
         aria-current={view === 'maker' && makerMode === 'play' ? 'page' : undefined}
@@ -299,58 +333,30 @@
         onclick={() => showMaker('arrange')}>Arrange</button
       >
       <button
-        aria-current={view === 'maker' && makerMode === 'finish' ? 'page' : undefined}
-        class:current={view === 'maker' && makerMode === 'finish'}
-        type="button"
-        onclick={() => showMaker('finish')}>Finish</button
-      >
-      <button
-        aria-current={view === 'listen' ? 'page' : undefined}
-        class:current={view === 'listen'}
-        type="button"
-        onclick={openListen}>Listen</button
-      >
-      <button
+        aria-label="Help"
         aria-current={view === 'tutorial' ? 'page' : undefined}
         class:current={view === 'tutorial'}
+        class="help"
+        title="Play with a ready-made beat"
         type="button"
-        onclick={startTutorial}>Help</button
+        onclick={startTutorial}><Icon name="help" size={18} /></button
       >
     </nav>
   </header>
 
   {#if view === 'maker'}
-    {#if tutorialOffered}
-      <section class="tutorial-offer" aria-label="Tutorial offer">
-        <span>New here?</span><strong>Play with a ready-made beat.</strong><button
-          type="button"
-          onclick={startTutorial}>Start tutorial</button
-        ><button
-          class="quiet"
-          type="button"
-          onclick={() => {
-            tutorialOffered = false;
-            saveTutorialComplete();
-          }}>Not now</button
-        >
-      </section>
-    {/if}
-    <StatusNotice message={editor.notice} onDismiss={() => (editor.notice = undefined)} />
+    <StatusNotice
+      message={editor.notice}
+      actions={noticeActions}
+      onDismiss={() => (editor.notice = undefined)}
+    />
     {#if makerMode === 'play'}
       <div class="view" in:rise>
         <PlayStage
           {editor}
           onArrange={() => showMaker('arrange')}
-          onFinish={() => showMaker('finish')}
-        />
-      </div>
-    {:else if makerMode === 'finish'}
-      <div class="view" in:rise>
-        <FinishMix
-          {editor}
-          onBack={() => showMaker('play')}
-          onShareLoop={() => void shareComposition(editor.composition)}
-          onShareTake={(take) => void shareComposition(take.composition, take)}
+          onShare={openShare}
+          onTakeSaved={() => (editor.notice = TAKE_SAVED)}
         />
       </div>
     {:else}
@@ -360,18 +366,32 @@
           {#if !makerHasClips && !editor.loading}
             <div class="empty-arrangement">
               <strong>Tap any sound.</strong><span
-                >Click a lane to place a sound, let Jev jam a loop, or start with three open voices.</span
+                >Tap a lane to place a sound, let Jev jam a loop, or start from something made.</span
               >
               <div class="empty-actions">
                 <button
                   disabled={editor.jamming}
                   type="button"
-                  onclick={() => void editor.jamWithJev('')}>✦ Jam with Jev</button
+                  use:press
+                  onclick={() => void editor.jamWithJev('')}
+                  ><Icon name="spark" /> Jam with Jev</button
                 ><button
                   type="button"
+                  use:press
                   onclick={() => editor.importComposition(starterForChallenge(challenge))}
                   >Remix today’s starter</button
+                ><button type="button" class="quiet" use:press onclick={startTutorial}
+                  >Try a ready-made beat</button
                 >
+              </div>
+              <div class="examples" role="group" aria-label="Hear an example">
+                <span>Hear an example</span>
+                {#each examples as example, index (index)}
+                  <button type="button" onclick={() => openShared(example)}
+                    ><Icon name="play" size={12} />
+                    {EXAMPLE_NAMES[index] ?? `Example ${index + 1}`}</button
+                  >
+                {/each}
               </div>
             </div>
           {/if}
@@ -379,7 +399,7 @@
           <TimelineEditor {editor} />
           <div class="dock">
             <SelectionActions {editor} />
-            <TransportBar {editor} onShare={() => void shareComposition(editor.composition)} />
+            <TransportBar {editor} onShare={openShare} />
           </div>
         </div>
         <TuningDeck {editor} />
@@ -405,10 +425,6 @@
       </div>
       <TuningDeck editor={tutorial} />
     </section>
-  {:else if view === 'listen'}
-    <div class="view" in:rise>
-      <ListenGallery {examples} shared={sharedImported} onOpen={openShared} />
-    </div>
   {:else if view === 'shared'}
     {#if shared}
       <div class="view" in:rise>
@@ -419,27 +435,29 @@
           picked={sharedPicked}
           onPlay={() => void playShared()}
           onPick={() => void chooseSharedFavorite()}
-          onBack={() => leaveShared('maker')}
+          onRemix={remixShared}
+          onBack={leaveShared}
         />
       </div>
     {:else}
       <section class="shared-error" role="alert">
         <h1>That link did not open.</h1>
         <p>{sharedError ?? 'This Audle link is damaged or from a newer version'}</p>
-        <button type="button" onclick={() => leaveShared('maker')}>Back to Make</button>
+        <button type="button" onclick={leaveShared}>Back to Play</button>
       </section>
     {/if}
   {/if}
 
-  {#if shareFallback}
-    <section class="share-fallback" aria-labelledby="share-fallback-title">
-      <h2 id="share-fallback-title">Copy this link</h2>
-      <input bind:this={shareInput} readonly value={shareFallback} /><button
-        type="button"
-        onclick={() => shareInput?.select()}>Select link</button
-      ><button type="button" onclick={() => (shareFallback = undefined)}>Close</button>
-    </section>
-  {/if}
+  <ShareSheet
+    {editor}
+    open={shareOpen}
+    history={sharedImported}
+    fallbackLink={shareFallback}
+    onClose={closeShare}
+    onShareLoop={() => void shareComposition(editor.composition)}
+    onShareTake={(take) => void shareComposition(take.composition, take)}
+    onOpen={openShared}
+  />
 </main>
 
 <style>
@@ -449,45 +467,41 @@
   }
   .deck-top {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: auto 1fr auto;
     align-items: center;
-    gap: 12px;
-    min-block-size: 74px;
-    padding: 10px clamp(14px, 3vw, 36px);
+    gap: 16px;
+    min-block-size: 64px;
+    padding: 8px clamp(14px, 3vw, 36px);
     background: var(--audle-deck);
     border-block-end: 1px solid var(--audle-outline);
     box-shadow: var(--audle-deck-edge);
   }
   .wordmark {
-    justify-self: start;
     border: 0;
+    padding: 0;
     background: transparent;
     color: var(--audle-text);
     cursor: pointer;
-    font-size: 1.55rem;
+    font-size: 1.5rem;
     font-weight: 800;
     letter-spacing: -0.05em;
   }
   .daily-readout {
     display: grid;
-    justify-items: center;
-    font-family: ui-monospace, monospace;
-    text-align: center;
-  }
-  .daily-readout strong {
-    font-size: 0.8rem;
-  }
-  .daily-readout span,
-  .daily-readout small {
+    gap: 1px;
+    margin: 0;
     color: var(--audle-text-muted);
-    font-size: 0.65rem;
+    font-size: 0.78rem;
+    font-weight: 700;
   }
   .daily-readout small {
-    color: var(--audle-playback-light);
+    color: var(--audle-text-dim);
+    font-size: 0.72rem;
+    font-weight: 400;
   }
   nav {
     display: flex;
-    justify-self: end;
+    align-items: center;
     gap: 4px;
   }
   nav button {
@@ -502,7 +516,14 @@
   }
   nav button.current {
     color: var(--audle-text);
-    border-color: var(--audle-playback-light);
+    border-color: var(--audle-accent);
+  }
+  nav .help {
+    display: grid;
+    place-items: center;
+    inline-size: 44px;
+    padding: 0;
+    margin-inline-start: 4px;
   }
   .maker-workspace {
     display: grid;
@@ -524,7 +545,7 @@
     z-index: 10;
     display: grid;
     background: var(--audle-deck);
-    box-shadow: 0 -8px 24px oklch(0.05 0.01 232 / 0.55);
+    border-block-start: 1px solid var(--audle-outline);
   }
   .empty-arrangement {
     display: grid;
@@ -545,9 +566,10 @@
     gap: 8px;
   }
   .empty-arrangement button,
-  .tutorial-offer button,
-  .shared-error button,
-  .share-fallback button {
+  .shared-error button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     min-block-size: 44px;
     padding-inline: 12px;
     border: 1px solid var(--audle-loop-light);
@@ -556,32 +578,35 @@
     cursor: pointer;
     font-weight: 700;
   }
-  .tutorial-offer {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 9px;
-    margin: 10px;
-    padding: 10px 14px;
-    background: var(--audle-deck-raised);
-    border: 1px solid var(--audle-outline);
-  }
-  .tutorial-offer strong {
-    flex: 1;
-    min-inline-size: 12ch;
-  }
-  .tutorial-offer span {
-    color: var(--audle-playback-light);
-    font-size: 0.75rem;
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-  .tutorial-offer .quiet {
+  .empty-arrangement .quiet {
     border-color: var(--audle-outline);
     background: var(--audle-control);
   }
-  .shared-error,
-  .share-fallback {
+  .examples {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-block-start: 6px;
+    padding-block-start: 10px;
+    border-block-start: 1px solid var(--audle-outline-subtle);
+    inline-size: 100%;
+  }
+  .examples > span {
+    margin-inline-end: 4px;
+  }
+  .empty-arrangement .examples button {
+    min-block-size: 36px;
+    padding-inline: 10px;
+    border-color: var(--audle-outline-subtle);
+    background: transparent;
+    color: var(--audle-text-muted);
+    font-size: 0.8rem;
+  }
+  .empty-arrangement .examples button:hover {
+    color: var(--audle-accent);
+  }
+  .shared-error {
     inline-size: min(100% - 32px, 640px);
     margin: 12vh auto;
     padding: 28px;
@@ -589,101 +614,66 @@
     border: 1px solid var(--audle-record-light);
     box-shadow: inset 0 0 0 1px var(--audle-record-light);
   }
-  .shared-error h1,
-  .share-fallback h2 {
+  .shared-error h1 {
     margin-block-start: 0;
+    font-size: 1.6rem;
   }
   .shared-error p {
     color: var(--audle-text-muted);
   }
-  .share-fallback {
-    display: grid;
-    gap: 10px;
-    position: fixed;
-    z-index: 20;
-    inset: 0;
-    margin: auto;
-    block-size: max-content;
-  }
-  .share-fallback input {
-    min-block-size: 44px;
-    padding-inline: 8px;
-    border: 1px solid var(--audle-outline);
-    background: var(--audle-well);
-    color: var(--audle-text);
-  }
   @media (max-width: 959px) {
-    .deck-top {
-      grid-template-columns: 1fr auto;
-    }
-    .daily-readout {
-      display: none;
-    }
     .maker-workspace {
       grid-template-columns: minmax(0, 1fr);
     }
-    .maker-workspace > :first-child {
+    /* On a phone the timeline comes first, so a tap on a pad lands where the maker can see it. */
+    .arrangement {
       order: 0;
     }
-    .arrangement {
+    /* The pad bank and tuning deck are other components' roots, so they need global selectors. */
+    .maker-workspace > :global(:first-child) {
       order: 1;
     }
-    .maker-workspace > :last-child {
+    .maker-workspace > :global(:last-child) {
       order: 2;
     }
     .tutorial-workspace {
       padding-block-start: 0;
     }
   }
-  @media (max-width: 540px) {
+  @media (max-width: 620px) {
     .deck-top {
-      min-block-size: 62px;
-    }
-    /* One compact line: the prompt on the left, both buttons right-aligned and half height. */
-    .tutorial-offer {
-      gap: 6px;
-      margin: 6px;
-      padding: 8px 10px;
-      font-size: 0.85rem;
-    }
-    .tutorial-offer strong {
-      flex-basis: 100%;
-    }
-    .tutorial-offer span {
-      flex-basis: 100%;
-    }
-    .tutorial-offer button {
-      flex: 1;
-      min-block-size: 40px;
-      padding-inline: 8px;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      min-block-size: 58px;
     }
     .wordmark {
-      font-size: 1.35rem;
+      font-size: 1.3rem;
+    }
+    .daily-readout {
+      font-size: 0.7rem;
+    }
+    .daily-readout small {
+      display: none;
     }
     nav button {
-      min-block-size: 44px;
       padding-inline: 8px;
-      font-size: 0.8rem;
+      font-size: 0.85rem;
+    }
+  }
+  @media (max-width: 400px) {
+    .deck-top {
+      padding-inline: 10px;
+    }
+    .daily-readout span {
+      display: block;
+      max-inline-size: 16ch;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .maker-workspace {
       padding: 6px;
       gap: 6px;
-    }
-  }
-  @media (max-width: 370px) {
-    .deck-top {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 0;
-      padding-inline: 12px;
-    }
-    nav {
-      inline-size: 100%;
-      justify-self: stretch;
-      justify-content: space-between;
-    }
-    nav button {
-      padding-inline: 5px;
-      font-size: 0.75rem;
     }
   }
 </style>

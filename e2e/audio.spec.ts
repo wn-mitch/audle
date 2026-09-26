@@ -75,10 +75,10 @@ test('offers every pattern feel beneath the play field and applies the one you t
   }
 });
 
-test('Finish exports a non-silent WAV from the live loop', async ({ page }) => {
+test('the share sheet exports a non-silent WAV from the live loop', async ({ page }) => {
   await page.goto('/');
   await page.locator('.sound-object').first().click();
-  await page.getByRole('button', { name: 'Finish', exact: true }).click();
+  await page.getByRole('button', { name: 'Share', exact: true }).click();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     page.getByRole('button', { name: 'Download loop WAV' }).click(),
@@ -104,18 +104,17 @@ test('Offset shifts the selected pattern one step and the strip follows', async 
   await expect(steps.nth(15)).toHaveClass(/hit/);
 });
 
-test('Finish meters follow the loop’s output and rest when it stops', async ({ page }) => {
+test('saving a take from Play offers to play and share it', async ({ page }) => {
   await page.goto('/');
-  await page.locator('.sound-object').first().click();
-  await page.getByRole('button', { name: 'Finish', exact: true }).click();
-  await expect.poll(() => outputRms(page)).toBeGreaterThan(0.000001);
-  const heights = () =>
-    page.evaluate(() =>
-      [...document.querySelectorAll<HTMLElement>('.meter span')].map((span) =>
-        Number.parseInt(span.style.getPropertyValue('--height'), 10),
-      ),
-    );
-  await expect.poll(async () => Math.max(...(await heights()))).toBeGreaterThan(12);
-  await page.getByRole('button', { name: /Stop loop/ }).click();
-  await expect.poll(async () => Math.max(...(await heights()))).toBe(12);
+  await page.locator('.sound-object').nth(8).click();
+  const record = page.getByRole('button', { name: /Record a take/ });
+  await expect(record).toBeEnabled();
+  await record.click();
+  await expect(page.getByRole('button', { name: 'Cancel count-in' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save take' })).toBeVisible({ timeout: 6000 });
+  await page.locator('.sound-object').nth(12).click();
+  await page.getByRole('button', { name: 'Save take' }).click();
+  await expect(page.getByText('Take saved.')).toBeVisible();
+  await page.getByRole('button', { name: 'Share it' }).click();
+  await expect(page.getByRole('button', { name: 'Copy take link' })).toBeVisible();
 });

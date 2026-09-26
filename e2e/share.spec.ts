@@ -15,9 +15,10 @@ const shareLayeredComposition = async (page: Page): Promise<string> => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Arrange', exact: true }).click();
   await page.getByRole('button', { name: 'Remix today’s starter' }).click();
-  await page.getByRole('button', { name: '+ Add a layer' }).click();
-  await page.getByRole('button', { name: 'Share' }).click();
-  const fallback = page.locator('.share-fallback input');
+  await page.getByRole('button', { name: 'Add a layer' }).click();
+  await page.getByRole('button', { name: 'Share', exact: true }).click();
+  await page.getByRole('button', { name: 'Copy link' }).click();
+  const fallback = page.locator('.fallback input');
   await expect(fallback).toHaveValue(/\S/u);
   return fallback.inputValue();
 };
@@ -48,4 +49,16 @@ test('shares a self-contained link when short links are unavailable', async ({ p
 test('reports a short link that has gone missing', async ({ page }) => {
   await page.goto('/s/AAAAAAAAAAAA');
   await expect(page.getByRole('heading', { name: 'That link did not open.' })).toBeVisible();
+});
+
+test('a shared loop can be remixed into the maker’s own draft', async ({ page }) => {
+  await withoutPlatformSharing(page);
+  const link = await shareLayeredComposition(page);
+  await page.goto(link);
+  await page.getByRole('button', { name: 'Remix this' }).click();
+  await expect(page.getByRole('button', { name: 'Arrange', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await expect(page.locator('.clip')).not.toHaveCount(0);
 });

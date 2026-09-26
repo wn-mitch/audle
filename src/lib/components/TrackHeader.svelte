@@ -2,6 +2,7 @@
   import { sampleById } from '../data/samples';
   import { SOURCES_PER_DAY, type Track } from '../domain/model';
   import type { EditorState } from '../state/editor.svelte';
+  import Icon from './Icon.svelte';
 
   let { editor, track, index }: { editor: EditorState; track: Track; index: number } = $props();
   const sample = $derived(sampleById(track.sampleId)!);
@@ -14,11 +15,15 @@
     type="button"
     onclick={() => (editor.selectedTrackId = track.id)}
   >
-    <span aria-hidden="true">{sample.kind === 'loop' ? '↻' : '●'}</span>
+    <span class="kind" class:hit={sample.kind !== 'loop'}
+      ><Icon name={sample.kind === 'loop' ? 'loop' : 'hit'} size={14} /></span
+    >
     <span>{index < SOURCES_PER_DAY ? sample.role : `Layer ${index - SOURCES_PER_DAY + 1}`}</span>
   </button>
   {#if editor.jamPicks[track.id]}
-    <span class="jam-pick" title="Jev’s pick">✦ {editor.jamPicks[track.id]}</span>
+    <span class="jam-pick" title="Jev’s pick"
+      ><Icon name="spark" size={10} /> {editor.jamPicks[track.id]}</span
+    >
   {/if}
   <label>
     <span class="sr-only">Track label</span>
@@ -67,9 +72,13 @@
     font-size: 0.65rem;
     text-transform: capitalize;
   }
-  .source span:first-child {
+  /* Loop and hit sources carry their own role colour, matching the clips they produce. */
+  .kind {
+    display: inline-flex;
     color: var(--audle-loop-light);
-    font-size: 1rem;
+  }
+  .kind.hit {
+    color: var(--audle-one-shot-light);
   }
   label {
     display: grid;

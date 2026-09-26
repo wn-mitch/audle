@@ -243,8 +243,8 @@
     <div>
       <p>Arrange</p>
       <strong
-        >{editor.composition.bars} bar{editor.composition.bars === 1 ? '' : 's'} · click a lane to add,
-        double-click to remove</strong
+        >{editor.composition.bars} bar{editor.composition.bars === 1 ? '' : 's'} · tap a lane to add,
+        tap a clip twice to remove, drag to move</strong
       >
     </div>
     <button
@@ -337,7 +337,7 @@
                 }}
               >
                 {#if clip.kind === 'loop'}
-                  <span aria-hidden="true" class="waveform">∿∿∿</span>
+                  <span aria-hidden="true" class="waveform"><i></i><i></i><i></i></span>
                   <span class="clip-copy">Loop</span>
                 {:else}
                   <span aria-hidden="true" class="strikes"
@@ -567,6 +567,20 @@
     cursor: ew-resize;
     touch-action: none;
     translate: calc(var(--drag, 0%) / 100% * 100cqi) 0;
+  }
+  .waveform {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-inline-start: 4px;
+  }
+  .waveform i {
+    display: block;
+    inline-size: 7px;
+    block-size: 7px;
+    border: 1.5px solid var(--audle-loop-light);
+    border-block-end: 0;
+    border-radius: 7px 7px 0 0;
   }
   .hit .strikes {
     color: var(--audle-one-shot-light);

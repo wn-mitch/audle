@@ -43,12 +43,15 @@ Tokens live in `src/app.css` and are the only source of colour; components never
 - Use `--audle-text` for primary text and `--audle-text-muted` only for secondary metadata on dark surfaces.
 - Focus is a 3px visible ring.
 - Motion uses only transform, opacity and custom properties. Press is a quick compression (`--motion-press`); release and pop-in may use a low-bounce spring (damping ≥ 20, no visible overshoot past ~3%) or an ease-out-quint fallback. No elastic or high-bounce easing. Beat and hit motion follow the audio transport through `Tone.getDraw`, never a timer.
+- The sound field and pad bank may enter with a diagonal stagger once per page load; nothing else animates on load.
+- Depth comes from the inset deck-edge and control tokens only. No drop shadows or blur halos on panels, cards or docks.
+- Icons come from the shared 16px stroke set (`Icon.svelte`); text glyphs and emoji never stand in for icons.
 - With reduced motion, preserve every static state cue (pressed contact shadow, active ring, lit meter) while removing compression, entrances, hit flashes, beat pulsing, and playhead sweeps.
 
 ## Layout
 
-Play is the entry surface: an 8×2 sound field on desktop and tablet, 4×4 on phone, with the selected sound's pattern strip and optional tuning beneath it. Arrange retains the 300px pad bank, flexible precision timeline, and 260px tuning deck on desktop, with the transport and selection actions pinned to the bottom of the deck at every width; phone and tablet stack the pad bank above the scrollable timeline and use sticky lane labels. Finish separates the editable loop and captured take into two panels that stack on phone.
+Two surfaces and one sheet. Play is the entry: an 8×2 sound field on desktop and tablet, 4×4 on phone, the selected sound's feels, offset and pattern strip beneath it, and a footer with Play, Record a take, Share and Arrange. Arrange retains the 300px pad bank, flexible precision timeline, and 260px tuning deck on desktop, with the transport and selection actions pinned to the bottom of the deck at every width; phone and tablet put the timeline first with the pad bank as a horizontal strip beneath it. The share sheet, opened from either surface, holds the loop and take links, WAV downloads, and loops shared to this device. Help is a header icon that starts the guided remix; a shared link lands on the shared player, which can be remixed into the maker's own draft.
 
 ## Components
 
-Sound objects, pads, timeline clips, transport controls, knobs, gallery rows, and notices are tactile dark surfaces with hard structural separators. Each object pairs its shape, number, label, role, and active state; a queued state says “Next bar.” The Play pattern strip keeps precision editing optional. Arrange's starter action is “Remix today’s starter”; voice cloning is “Add a layer”; repeat is “Fill the loop”; local favorite is “Your pick”.
+Sound objects, pads, timeline clips, transport controls, knobs, gallery rows, and notices are tactile dark surfaces with hard structural separators. Each object pairs its shape, number, label, role, and active state; a queued state says “Next bar.” The Play pattern strip keeps precision editing optional. Arrange's starter action is “Remix today’s starter”; voice cloning is “Add a layer”; repeat is “Fill the loop”; local favorite is “Your pick”; a shared loop offers “Remix this”. The one thing a maker tunes is a “sound” everywhere, never a voice or a track in copy.

@@ -1,12 +1,16 @@
 <script lang="ts">
   import { rise } from '../motion';
+  import Icon from './Icon.svelte';
   let {
     message,
     tone = 'neutral',
+    actions = [],
     onDismiss,
   }: {
     message: string | undefined;
     tone?: 'neutral' | 'error' | 'record';
+    /** Follow-up actions that belong to this message, such as playing a take just saved. */
+    actions?: Array<{ label: string; onClick: () => void }>;
     onDismiss?: () => void;
   } = $props();
 </script>
@@ -21,8 +25,13 @@
   >
     <span aria-hidden="true">{tone === 'error' ? '!' : tone === 'record' ? '●' : 'i'}</span>
     <p>{message}</p>
+    {#each actions as action (action.label)}
+      <button type="button" class="action" onclick={action.onClick}>{action.label}</button>
+    {/each}
     {#if onDismiss}
-      <button type="button" aria-label="Dismiss notice" onclick={onDismiss}>×</button>
+      <button type="button" class="dismiss" aria-label="Dismiss notice" onclick={onDismiss}
+        ><Icon name="close" /></button
+      >
     {/if}
   </aside>
 {/if}
@@ -50,12 +59,28 @@
     margin: 0;
     font-size: 0.875rem;
   }
-  .notice button {
-    inline-size: 32px;
-    block-size: 32px;
+  .notice .dismiss {
+    display: grid;
+    place-items: center;
+    inline-size: 36px;
+    block-size: 36px;
     border: 0;
     background: transparent;
+    color: var(--audle-text-muted);
     cursor: pointer;
+  }
+  .notice .action {
+    min-block-size: 36px;
+    padding-inline: 12px;
+    border: 1px solid var(--audle-accent-dim);
+    background: var(--audle-control);
+    color: var(--audle-text);
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+  .notice .action:hover {
+    background: var(--audle-playback-surface);
   }
   .notice.danger {
     border-color: var(--audle-record-light);
