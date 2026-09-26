@@ -1,6 +1,6 @@
 <script lang="ts">
   import { sampleById } from '../data/samples';
-  import type { Track } from '../domain/model';
+  import { SOURCES_PER_DAY, type Track } from '../domain/model';
   import type { EditorState } from '../state/editor.svelte';
 
   let { editor, track, index }: { editor: EditorState; track: Track; index: number } = $props();
@@ -15,7 +15,7 @@
     onclick={() => (editor.selectedTrackId = track.id)}
   >
     <span aria-hidden="true">{sample.kind === 'loop' ? '↻' : '●'}</span>
-    <span>{index < 8 ? sample.role : `Layer ${index - 7}`}</span>
+    <span>{index < SOURCES_PER_DAY ? sample.role : `Layer ${index - SOURCES_PER_DAY + 1}`}</span>
   </button>
   {#if editor.jamPicks[track.id]}
     <span class="jam-pick" title="Jev’s pick">✦ {editor.jamPicks[track.id]}</span>

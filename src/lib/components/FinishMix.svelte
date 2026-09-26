@@ -154,7 +154,7 @@
     padding: 0;
     border: 0;
     background: transparent;
-    color: #a8cebb;
+    color: var(--audle-text-muted);
     cursor: pointer;
     font-weight: 700;
   }
@@ -171,7 +171,7 @@
     letter-spacing: 0.09em;
   }
   .eyebrow {
-    color: #9fe9bc;
+    color: var(--audle-accent);
   }
   .finish h1 {
     font-size: clamp(3.1rem, 7.8vw, 6.5rem);
@@ -180,7 +180,7 @@
     margin: 14px 0;
   }
   .finish h1 em {
-    color: #9fe9bc;
+    color: var(--audle-accent);
     font-style: normal;
   }
   .finish-head p {
@@ -198,20 +198,20 @@
     flex-direction: column;
     min-block-size: 420px;
     padding: clamp(20px, 3vw, 32px);
-    border: 1px solid #47605a;
-    background: #1b2b31;
+    border: 1px solid var(--audle-outline);
+    background: var(--audle-deck-raised);
     box-shadow: 0 18px 45px #0003;
   }
   .card.take {
-    background: #22312d;
+    background: var(--audle-playback-surface);
   }
   .card-index {
     display: flex;
     gap: 14px;
-    color: #a9ead1;
+    color: var(--audle-accent);
   }
   .card-index span {
-    color: #8aaba3;
+    color: var(--audle-text-dim);
   }
   .card h2 {
     margin: 35px 0 4px;
@@ -234,11 +234,11 @@
   .meter span {
     inline-size: 11%;
     block-size: var(--height);
-    border: 1px solid #506760;
-    background: #31443f;
+    border: 1px solid var(--audle-outline);
+    background: var(--audle-control);
   }
   .meter span.lit {
-    background: #92d4b1;
+    background: var(--audle-accent-dim);
   }
   .take-state {
     display: flex;
@@ -246,16 +246,16 @@
     gap: 10px;
     block-size: 72px;
     margin: 8px 0 26px;
-    color: #b0d6c5;
+    color: var(--audle-text-muted);
   }
   .take-state i {
     inline-size: 11px;
     block-size: 11px;
     border-radius: 50%;
-    background: #94d5b3;
+    background: var(--audle-accent-dim);
   }
   .take-state i.recording {
-    background: #f28d79;
+    background: var(--audle-record-light);
     animation: blink 1s infinite alternate;
   }
   @keyframes blink {
@@ -272,32 +272,32 @@
   .card-actions button {
     min-block-size: 46px;
     padding: 0 15px;
-    border: 1px solid #6e9384;
-    background: #254039;
-    color: #eaf5ec;
+    border: 1px solid var(--audle-accent-dim);
+    background: var(--audle-playback-surface);
+    color: var(--audle-text);
     cursor: pointer;
     font-weight: 700;
   }
   .card-actions .primary {
-    border-color: #a8e8bb;
-    background: #a8e8bb;
-    color: #13241c;
+    border-color: var(--audle-accent);
+    background: var(--audle-accent);
+    color: var(--audle-accent-ink);
   }
   .card-actions .quiet {
     border-color: transparent;
     background: transparent;
-    color: #aac6b8;
+    color: var(--audle-text-muted);
   }
   .card-actions button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
   .error {
-    color: #ffaf9e;
+    color: var(--audle-record-light);
   }
   .rendering,
   .footnote {
-    color: #9db4ab;
+    color: var(--audle-text-dim);
   }
   .footnote {
     margin-top: 26px;

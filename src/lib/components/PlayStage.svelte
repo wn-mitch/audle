@@ -18,9 +18,6 @@
     halftime: [0, 4],
   };
 
-  /** One hue per role, so a role's two pads read as a family. */
-  const PAD_HUES = [166, 272, 38, 215, 17, 185, 317, 75];
-
   let {
     editor,
     onArrange,
@@ -110,7 +107,7 @@
           class:selected={editor.selectedTrackId === track.id}
           class:pending={status.startsWith('queued')}
           data-active={status === 'on'}
-          style={`--hue:${PAD_HUES[index % PAD_HUES.length]};--delay:${index * 30}ms`}
+          style={`--source:var(--audle-source-${index + 1})`}
           aria-label={`${sample?.label ?? track.label}, ${status === 'empty' ? 'add to loop' : status === 'off' ? 'off, turn on' : status === 'on' ? 'on, turn off' : 'queued for next bar'}`}
           aria-pressed={status === 'on'}
           disabled={editor.loading || !!editor.loadingError || editor.playingPerformance}
@@ -121,13 +118,26 @@
             <span class="object-role">{sample?.role}</span></span
           >
           <span class="glyph" aria-hidden="true">
-            {#if index % 8 === 0}<span class="shape rings"><i></i><i></i><i></i></span>
-            {:else if index % 8 === 1}<span class="shape coils"><i></i><i></i><i></i></span>
-            {:else if index % 8 === 2}<span class="shape prism"><i></i><i></i></span>
-            {:else if index % 8 === 3}<span class="shape wave"><i></i><i></i><i></i><i></i></span>
-            {:else if index % 8 === 4}<span class="shape spike"><i></i><i></i><i></i><i></i></span>
-            {:else if index % 8 === 5}<span class="shape bars"><i></i><i></i><i></i><i></i></span>
-            {:else if index % 8 === 6}<span class="shape orbit"><i></i><i></i><i></i></span>
+            {#if Math.floor(index / 2) % 8 === 0}<span class="shape rings"
+                ><i></i><i></i><i></i></span
+              >
+            {:else if Math.floor(index / 2) % 8 === 1}<span class="shape coils"
+                ><i></i><i></i><i></i></span
+              >
+            {:else if Math.floor(index / 2) % 8 === 2}<span class="shape prism"><i></i><i></i></span
+              >
+            {:else if Math.floor(index / 2) % 8 === 3}<span class="shape wave"
+                ><i></i><i></i><i></i><i></i></span
+              >
+            {:else if Math.floor(index / 2) % 8 === 4}<span class="shape spike"
+                ><i></i><i></i><i></i><i></i></span
+              >
+            {:else if Math.floor(index / 2) % 8 === 5}<span class="shape bars"
+                ><i></i><i></i><i></i><i></i></span
+              >
+            {:else if Math.floor(index / 2) % 8 === 6}<span class="shape orbit"
+                ><i></i><i></i><i></i></span
+              >
             {:else}<span class="shape lattice"><i></i><i></i><i></i><i></i></span>{/if}
           </span>
           <span class="object-bottom"
@@ -282,9 +292,9 @@
     gap: 12px;
     margin: -6px 0 18px;
     padding: 12px 15px;
-    border: 1px solid #ca896f;
-    background: #33251f;
-    color: #ffcab3;
+    border: 1px solid var(--audle-record-light);
+    background: var(--audle-record-surface);
+    color: var(--audle-text);
     font-size: 0.78rem;
   }
   .capture-banner strong {
@@ -294,25 +304,25 @@
     letter-spacing: 0.06em;
   }
   .capture-banner span:not(.capture-light) {
-    color: #e1bdb0;
+    color: var(--audle-text-muted);
   }
   .capture-banner button {
     min-block-size: 40px;
     margin-inline-start: auto;
     padding: 0 12px;
-    border: 1px solid #e9aa91;
-    background: #663e30;
-    color: #ffe4d6;
+    border: 1px solid var(--audle-record-light);
+    background: var(--audle-record-surface);
+    color: var(--audle-text);
     cursor: pointer;
   }
   .capture-light {
     inline-size: 9px;
     block-size: 9px;
     border-radius: 50%;
-    background: #e8aa90;
+    background: var(--audle-record-light);
   }
   .capture-light.recording {
-    background: #ff9379;
+    background: var(--audle-record-light);
   }
   .sr-only {
     position: absolute;
@@ -333,19 +343,19 @@
   .stage-frame {
     overflow: hidden;
     position: relative;
-    border: 1px solid #4b625e;
-    background: #121f26;
+    border: 1px solid var(--audle-outline);
+    background: var(--audle-deck-raised);
     box-shadow:
       0 22px 80px #0006,
-      inset 0 1px #ffffff18;
+      inset 0 1px var(--audle-edge-light);
   }
   .stage-topline {
     position: relative;
     display: flex;
     justify-content: flex-end;
     padding: 14px 20px;
-    color: #b4c7c6;
-    border-bottom: 1px solid #38504d;
+    color: var(--audle-text-muted);
+    border-bottom: 1px solid var(--audle-grid-major);
   }
   .stage-topline i {
     display: inline-block;
@@ -353,10 +363,10 @@
     block-size: 6px;
     border-radius: 50%;
     margin-inline-start: 7px;
-    background: #60726e;
+    background: var(--audle-text-dim);
   }
   .stage-topline i.lit {
-    background: #92e7b8;
+    background: var(--audle-accent);
   }
   .objects {
     position: relative;
@@ -375,9 +385,9 @@
     min-block-size: 168px;
     padding: 12px;
     overflow: hidden;
-    border: 1px solid #334a4b;
-    background: #1a292f;
-    color: #dcece9;
+    border: 1px solid var(--audle-outline-subtle);
+    background: var(--audle-control);
+    color: var(--audle-text);
     cursor: pointer;
     text-align: left;
     transition:
@@ -388,21 +398,21 @@
   }
   .sound-object:hover:not(:disabled) {
     transform: translateY(-3px);
-    border-color: hsl(var(--hue) 47% 62% / 0.7);
+    border-color: oklch(var(--source) / 0.7);
   }
   .sound-object:active:not(:disabled) {
     transform: translateY(1px);
   }
   .sound-object.active {
-    border-color: hsl(var(--hue) 62% 70%);
-    background: #213336;
-    box-shadow: inset 0 0 0 1px hsl(var(--hue) 65% 70% / 0.32);
+    border-color: oklch(var(--source));
+    background: var(--audle-control-hover);
+    box-shadow: inset 0 0 0 1px oklch(var(--source) / 0.32);
   }
   .sound-object.selected:after {
     content: '';
     position: absolute;
     inset: 4px;
-    border: 1px solid hsl(var(--hue) 65% 72% / 0.44);
+    border: 1px solid oklch(var(--source) / 0.44);
     pointer-events: none;
   }
   .sound-object.pending {
@@ -415,10 +425,10 @@
   .object-number {
     display: flex;
     justify-content: space-between;
-    color: #b4c8c8;
+    color: var(--audle-text-muted);
   }
   .object-role {
-    color: #819597;
+    color: var(--audle-text-dim);
     text-transform: uppercase;
   }
   .glyph {
@@ -426,7 +436,7 @@
     place-items: center;
     inline-size: 100%;
     block-size: 76px;
-    color: hsl(var(--hue) 65% 70%);
+    color: oklch(var(--source));
     opacity: 0.57;
     transform-origin: center;
   }
@@ -596,11 +606,11 @@
     overflow: hidden;
   }
   .object-bottom span {
-    color: #93aaa8;
+    color: var(--audle-text-dim);
     font-size: 0.58rem;
   }
   .active .object-bottom span {
-    color: hsl(var(--hue) 75% 75%);
+    color: oklch(var(--source));
   }
   .object-meter {
     position: absolute;
@@ -608,7 +618,7 @@
     left: 0;
     inline-size: 100%;
     block-size: 3px;
-    background: hsl(var(--hue) 72% 70%);
+    background: oklch(var(--source));
     transform: scaleX(0);
     transform-origin: left;
     transition: transform 0.23s;
@@ -621,7 +631,7 @@
     grid-template-columns: minmax(190px, 1fr) minmax(250px, 1.4fr);
     gap: 20px 36px;
     padding: 32px 0 22px;
-    border-bottom: 1px solid #38504d;
+    border-bottom: 1px solid var(--audle-grid-major);
   }
   .control-heading h2 {
     margin: 7px 0 4px;
@@ -640,16 +650,16 @@
     justify-items: start;
     min-block-size: 72px;
     padding: 12px;
-    border: 1px solid #3b5250;
-    background: #1a292f;
+    border: 1px solid var(--audle-outline-subtle);
+    background: var(--audle-control);
     color: var(--audle-text);
     text-align: left;
     cursor: pointer;
     text-transform: capitalize;
   }
   .patterns button.chosen {
-    border-color: #90e4bd;
-    background: #224038;
+    border-color: var(--audle-accent);
+    background: var(--audle-playback-surface);
   }
   .patterns button:disabled {
     opacity: 0.45;
@@ -664,16 +674,16 @@
   }
   .pattern-mark i {
     block-size: 100%;
-    background: #25373a;
-    border: 1px solid #3b5250;
+    background: var(--audle-control-pressed);
+    border: 1px solid var(--audle-outline-subtle);
   }
   .pattern-mark i.on {
-    background: #739f94;
-    border-color: #94cdb9;
+    background: var(--audle-accent-dim);
+    border-color: var(--audle-accent-dim);
   }
   .patterns button.chosen .pattern-mark i.on {
-    background: #90e4bd;
-    border-color: #d6eec9;
+    background: var(--audle-accent);
+    border-color: var(--audle-text);
   }
   .fine-tune {
     align-self: start;
@@ -681,7 +691,7 @@
   .fine-tune summary {
     cursor: pointer;
     min-block-size: 36px;
-    color: #a8c8c0;
+    color: var(--audle-text-muted);
     font-size: 0.82rem;
   }
   .fine-tune summary span {
@@ -700,26 +710,26 @@
     display: grid;
     gap: 4px;
     font-size: 0.72rem;
-    color: #a8c8c0;
+    color: var(--audle-text-muted);
   }
   .tune-fields input {
-    accent-color: #91e9c3;
+    accent-color: var(--audle-accent);
   }
   .solo-control {
     margin-block-start: 14px;
     min-block-size: 44px;
     padding: 8px 14px;
-    border: 1px solid #6c9f90;
-    background: #1a292f;
-    color: #c9e5d9;
+    border: 1px solid var(--audle-accent-dim);
+    background: var(--audle-control);
+    color: var(--audle-text-muted);
     cursor: pointer;
     font:
       700 0.72rem ui-monospace,
       monospace;
   }
   .solo-control[aria-pressed='true'] {
-    border-color: #a5e7be;
-    background: #26463e;
+    border-color: var(--audle-accent);
+    background: var(--audle-playback-surface);
   }
   .pattern-strip {
     display: flex;
@@ -735,15 +745,15 @@
   }
   .steps span {
     block-size: 13px;
-    background: #25373a;
-    border: 1px solid #42605e;
+    background: var(--audle-control-pressed);
+    border: 1px solid var(--audle-outline-subtle);
   }
   .steps span.hit {
-    background: #739f94;
-    border-color: #94cdb9;
+    background: var(--audle-accent-dim);
+    border-color: var(--audle-accent-dim);
   }
   .steps span.current {
-    box-shadow: 0 0 0 2px #d6eec9;
+    box-shadow: 0 0 0 2px var(--audle-text);
   }
   .play-footer {
     display: flex;
@@ -754,9 +764,9 @@
   .play-footer button {
     min-block-size: 48px;
     padding: 0 21px;
-    border: 1px solid #668d81;
-    background: #1d3430;
-    color: #e8f5f0;
+    border: 1px solid var(--audle-accent-dim);
+    background: var(--audle-playback-surface);
+    color: var(--audle-text);
     cursor: pointer;
     font-weight: 700;
   }
@@ -769,9 +779,9 @@
     gap: 8px;
   }
   .next-actions .finish {
-    background: #a5e7be;
-    color: #12231e;
-    border-color: #a5e7be;
+    background: var(--audle-accent);
+    color: var(--audle-accent-ink);
+    border-color: var(--audle-accent);
   }
   .next-actions span {
     margin-inline-start: 12px;

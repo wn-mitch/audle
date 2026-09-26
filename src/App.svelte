@@ -443,7 +443,7 @@
     cursor: pointer;
     font-size: 1.55rem;
     font-weight: 800;
-    letter-spacing: -0.09em;
+    letter-spacing: -0.05em;
   }
   .daily-readout {
     display: grid;

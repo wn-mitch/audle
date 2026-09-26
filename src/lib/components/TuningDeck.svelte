@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { EditorState } from '../state/editor.svelte';
   import Knob from './Knob.svelte';
+  import { SOURCES_PER_DAY } from '../domain/model';
 
   let { editor }: { editor: EditorState } = $props();
   const track = $derived(editor.selectedTrack);
@@ -87,7 +88,7 @@
           editor.endControlGesture();
         }}>S Solo</button
       >
-      {#if editor.composition.tracks.indexOf(track) >= 8}
+      {#if editor.composition.tracks.indexOf(track) >= SOURCES_PER_DAY}
         <button class="delete" type="button" onclick={() => editor.deleteSelectedLayer()}
           >Delete layer</button
         >

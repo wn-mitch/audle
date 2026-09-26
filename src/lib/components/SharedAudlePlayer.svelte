@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { CompositionV1 } from '../domain/model';
+  import { SOURCES_PER_DAY, type CompositionV1 } from '../domain/model';
   import type { PerformanceV1 } from '../domain/performance';
 
   let {
@@ -57,15 +57,17 @@
     </div>
     <div>
       <dt>Sources</dt>
-      <dd>8 daily sounds</dd>
+      <dd>{SOURCES_PER_DAY} daily sounds</dd>
     </div>
   </dl>
   <ol class="voice-list">
     {#each composition.tracks as track, index (track.id)}
       <li>
-        <span>{index < 8 ? `Source ${index + 1}` : `Layer ${index - 7}`}</span><strong
-          >{track.label}</strong
-        ><small
+        <span
+          >{index < SOURCES_PER_DAY
+            ? `Source ${index + 1}`
+            : `Layer ${index - SOURCES_PER_DAY + 1}`}</span
+        ><strong>{track.label}</strong><small
           >{track.clips.length} clips · {track.controls.tuneSemitones > 0 ? '+' : ''}{track.controls
             .tuneSemitones} st</small
         >

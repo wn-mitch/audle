@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { EditorState } from '../state/editor.svelte';
+  import { SOURCES_PER_DAY } from '../domain/model';
 
   let {
     editor,
@@ -44,7 +45,7 @@
       initialOneShotCount = oneShotCount;
       return;
     }
-    const clone = editor.composition.tracks[8];
+    const clone = editor.composition.tracks[SOURCES_PER_DAY];
     if (step === 0 && editor.playing) step = 1;
     if (step === 1 && oneShotCount > initialOneShotCount) step = 2;
     if (
@@ -53,7 +54,7 @@
     )
       step = 3;
     if (step === 3 && totalClips > initialClipCount + 2) step = 4;
-    if (step === 4 && editor.composition.tracks.length > 8) step = 5;
+    if (step === 4 && editor.composition.tracks.length > SOURCES_PER_DAY) step = 5;
     if (
       step === 5 &&
       clone &&

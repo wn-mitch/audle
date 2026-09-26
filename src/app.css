@@ -3,41 +3,71 @@
   color: var(--audle-text);
   background: var(--audle-page);
   color-scheme: dark;
-  --audle-page: oklch(0.095 0.012 255);
-  --audle-deck: oklch(0.145 0.014 255);
-  --audle-deck-raised: oklch(0.19 0.016 255);
-  --audle-control: oklch(0.232 0.018 255);
-  --audle-control-hover: oklch(0.27 0.02 255);
-  --audle-control-pressed: oklch(0.158 0.015 255);
-  --audle-well: oklch(0.072 0.01 255);
-  --audle-well-raised: oklch(0.102 0.012 255);
-  --audle-outline: oklch(0.42 0.024 255);
-  --audle-outline-subtle: oklch(0.285 0.018 255);
-  --audle-edge-light: oklch(0.61 0.026 255 / 0.34);
-  --audle-edge-shadow: oklch(0.03 0.008 255 / 0.82);
-  --audle-text: oklch(0.935 0.012 255);
-  --audle-text-muted: oklch(0.715 0.018 255);
-  --audle-text-dim: oklch(0.565 0.017 255);
-  --audle-loop-surface: oklch(0.23 0.055 302);
-  --audle-loop-light: oklch(0.72 0.18 302);
-  --audle-one-shot-surface: oklch(0.24 0.05 215);
-  --audle-one-shot-light: oklch(0.78 0.14 215);
-  --audle-selection-surface: oklch(0.25 0.06 28);
-  --audle-selection-light: oklch(0.73 0.18 28);
-  --audle-playback-surface: oklch(0.24 0.055 132);
-  --audle-playback-light: oklch(0.82 0.16 132);
-  --audle-record-surface: oklch(0.24 0.06 31);
-  --audle-record-light: oklch(0.67 0.2 31);
-  --audle-focus: oklch(0.83 0.125 260);
-  --audle-disabled: oklch(0.2 0.012 255);
-  --audle-disabled-ink: oklch(0.68 0.016 255);
-  --audle-grid-major: oklch(0.38 0.022 255);
-  --audle-grid-minor: oklch(0.225 0.016 255);
+  /* Surfaces: a teal-black instrument deck. */
+  --audle-page: oklch(0.13 0.014 232);
+  --audle-deck: oklch(0.195 0.02 230);
+  --audle-deck-raised: oklch(0.231 0.023 233);
+  --audle-control: oklch(0.27 0.023 225);
+  --audle-control-hover: oklch(0.307 0.024 209);
+  --audle-control-pressed: oklch(0.215 0.02 225);
+  --audle-well: oklch(0.105 0.012 232);
+  --audle-well-raised: oklch(0.14 0.014 232);
+  --audle-outline: oklch(0.476 0.028 183);
+  --audle-outline-subtle: oklch(0.391 0.028 199);
+  --audle-edge-light: oklch(0.7 0.026 190 / 0.3);
+  --audle-edge-shadow: oklch(0.05 0.01 232 / 0.82);
+  --audle-text: oklch(0.93 0.017 184);
+  --audle-text-muted: oklch(0.818 0.022 197);
+  --audle-text-dim: oklch(0.655 0.023 204);
+  /* Accent: the mint that marks playback, chosen states and the primary action. */
+  --audle-accent: oklch(0.873 0.088 157);
+  --audle-accent-dim: oklch(0.667 0.05 177);
+  --audle-accent-ink: oklch(0.22 0.03 175);
+  --audle-glow: oklch(0.873 0.088 157 / 0.22);
+  /* Role colours, contained inside clips, pads and rings. */
+  --audle-loop-surface: oklch(0.27 0.05 302);
+  --audle-loop-light: oklch(0.74 0.16 302);
+  --audle-one-shot-surface: oklch(0.28 0.045 215);
+  --audle-one-shot-light: oklch(0.8 0.12 215);
+  --audle-selection-surface: oklch(0.3 0.06 32);
+  --audle-selection-light: oklch(0.75 0.16 32);
+  --audle-playback-surface: oklch(0.345 0.039 175);
+  --audle-playback-light: var(--audle-accent);
+  --audle-record-surface: oklch(0.3 0.06 40);
+  --audle-record-light: oklch(0.772 0.136 34);
+  --audle-focus: oklch(0.85 0.1 160);
+  --audle-disabled: oklch(0.22 0.016 225);
+  --audle-disabled-ink: oklch(0.66 0.02 200);
+  --audle-grid-major: oklch(0.411 0.03 186);
+  --audle-grid-minor: oklch(0.3 0.024 209);
   --audle-deck-edge: inset 0 1px 0 var(--audle-edge-light), inset 0 -2px 0 var(--audle-edge-shadow);
   --audle-control-rest:
     inset 0 1px 0 var(--audle-edge-light), inset 0 -2px 0 var(--audle-edge-shadow);
   --audle-control-contact:
-    inset 0 2px 3px var(--audle-edge-shadow), inset 0 1px 0 oklch(0.02 0.006 255 / 0.45);
+    inset 0 2px 3px var(--audle-edge-shadow), inset 0 1px 0 oklch(0.04 0.008 232 / 0.45);
+  /* Sixteen source hues as bare OKLCH triplets: `oklch(var(--audle-source-3) / 0.4)`.
+     Sources arrive two per role, so each pair shares a hue family. */
+  --audle-source-1: 0.8 0.12 160;
+  --audle-source-2: 0.8 0.12 168;
+  --audle-source-3: 0.76 0.14 300;
+  --audle-source-4: 0.76 0.14 292;
+  --audle-source-5: 0.82 0.13 62;
+  --audle-source-6: 0.82 0.13 72;
+  --audle-source-7: 0.78 0.12 232;
+  --audle-source-8: 0.78 0.12 240;
+  --audle-source-9: 0.76 0.15 26;
+  --audle-source-10: 0.76 0.15 34;
+  --audle-source-11: 0.82 0.11 196;
+  --audle-source-12: 0.82 0.11 204;
+  --audle-source-13: 0.78 0.14 340;
+  --audle-source-14: 0.78 0.14 348;
+  --audle-source-15: 0.85 0.14 112;
+  --audle-source-16: 0.85 0.14 120;
+  /* Motion timing shared by CSS and the motion module. */
+  --motion-press: 60ms;
+  --motion-release: 220ms;
+  --motion-enter: 420ms;
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 * {
