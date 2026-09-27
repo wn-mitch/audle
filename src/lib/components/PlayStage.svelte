@@ -1,23 +1,18 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { enter, flashHit, meterKick, motion, popOn, press, pulseBeat, rise } from '../motion';
-  import Icon from './Icon.svelte';
-  import { LIVE_PATTERNS, type LivePattern } from '../domain/live';
+  import { LIVE_PATTERNS, clipsForPattern } from '../domain/live';
   import { sampleById } from '../data/samples';
-  import { SOURCES_PER_DAY } from '../domain/model';
+  import {
+    SOURCES_PER_DAY,
+    sourceTicks,
+    TICKS_PER_BAR,
+    TICKS_PER_SIXTEENTH,
+  } from '../domain/model';
+  import { flashHit, meterKick, motion, popOn, press, pulseBeat } from '../motion';
   import type { EditorState } from '../state/editor.svelte';
-  const STEPS = Array.from({ length: 16 }, (_, step) => step);
-  const MARK_STEPS = Array.from({ length: 8 }, (_, step) => step);
-
-  /** The eighth-note positions each feel plays, drawn as the mark on its button. */
-  const PATTERN_MARKS: Record<LivePattern, readonly number[]> = {
-    steady: [0, 2, 4, 6],
-    sparse: [0],
-    moving: [0, 3, 5],
-    offbeat: [1, 3, 5, 7],
-    dense: [0, 1, 2, 3, 4, 5, 6, 7],
-    halftime: [0, 4],
-  };
+  import Icon from './Icon.svelte';
+  import Knob from './Knob.svelte';
+  import SoundPad from './SoundPad.svelte';
 
   let {
     editor,
@@ -28,39 +23,89 @@
     editor: EditorState;
     onArrange: () => void;
     onShare: () => void;
-    /** Called once a take has been saved, so the app can offer to play or share it. */
     onTakeSaved: () => void;
   } = $props();
+
+  let stage: HTMLElement;
+  let lastBeat = -1;
+  const tracks = $derived(editor.composition.tracks.slice(0, SOURCES_PER_DAY));
+  const selected = $derived(editor.selectedTrack);
+  const sample = $derived(selected ? sampleById(selected.sampleId) : undefined);
+  const sourceIndex = $derived(tracks.findIndex((track) => track.sampleId === selected?.sampleId));
+  const activeCount = $derived(
+    tracks.filter((track) => editor.liveStatus(track.id) === 'on').length,
+  );
+  const pattern = $derived(selected ? editor.livePattern(selected.id) : 'empty');
+  const duration = $derived(
+    editor.loading || !selected ? undefined : editor.sourceDurationSeconds(selected.sampleId),
+  );
+  const tuningDisabled = $derived(
+    !selected ||
+      editor.loading ||
+      !!editor.loadingError ||
+      editor.playingPerformance ||
+      editor.captureStatus !== 'idle',
+  );
+  const feelDisabled = $derived(
+    !selected ||
+      editor.loading ||
+      !!editor.loadingError ||
+      editor.playingPerformance ||
+      editor.captureStatus !== 'idle',
+  );
+
+  // Compare the actual clips with each unshifted feel, rather than remembering an offset that
+  // could be stale after an Arrange edit or a restored draft.
+  const offset = $derived.by(() => {
+    if (!selected?.clips.length) return '0';
+    const span = sourceTicks(sample);
+    const total = editor.composition.bars * TICKS_PER_BAR;
+    const wrap = (tick: number, modulus: number) => ((tick % modulus) + modulus) % modulus;
+    const actual = selected.clips
+      .map((clip) => (clip.kind === 'hit' ? clip.startTick : clip.sourceOffsetTick))
+      .sort((a, b) => a - b);
+    for (let distance = 0; distance <= 8; distance++) {
+      for (const steps of distance ? [distance, -distance] : [0]) {
+        for (const feel of LIVE_PATTERNS) {
+          const reference = clipsForPattern(selected, editor.composition.bars, feel);
+          if (
+            reference.length !== selected.clips.length ||
+            !reference.every((clip, index) => {
+              const current = selected.clips[index];
+              return (
+                clip.kind === current?.kind &&
+                (clip.kind === 'hit' && current.kind === 'hit'
+                  ? clip.ratchet === current.ratchet
+                  : clip.kind === 'loop' &&
+                    current?.kind === 'loop' &&
+                    clip.lengthTicks === current.lengthTicks)
+              );
+            })
+          )
+            continue;
+          const shifted = reference
+            .map((clip) =>
+              wrap(
+                (clip.kind === 'hit' ? clip.startTick : clip.sourceOffsetTick) +
+                  steps * TICKS_PER_SIXTEENTH,
+                clip.kind === 'hit' ? total : span,
+              ),
+            )
+            .sort((a, b) => a - b);
+          if (shifted.every((tick, index) => tick === actual[index]))
+            return steps > 0 ? `+${steps}` : String(steps);
+        }
+      }
+    }
+    return 'CUSTOM';
+  });
 
   const saveTake = () => {
     const wasRecording = editor.captureStatus === 'recording';
     editor.stopCapture();
     if (wasRecording && editor.performance) onTakeSaved();
   };
-  let stage: HTMLElement;
-  const tracks = $derived(editor.composition.tracks.slice(0, SOURCES_PER_DAY));
-  const selected = $derived(
-    editor.composition.tracks.find((track) => track.id === editor.selectedTrackId),
-  );
-  const activeCount = $derived(
-    tracks.filter((track) => editor.liveStatus(track.id) === 'on').length,
-  );
-  const pattern = $derived(selected ? editor.livePattern(selected.id) : 'empty');
-  /** How many of the sixteen steps the selected sound fills, for the strip's text alternative. */
-  const litSteps = $derived(
-    STEPS.filter((step) =>
-      selected?.clips.some((clip) =>
-        clip.startTick <= step * 24
-          ? clip.kind === 'hit'
-            ? clip.startTick === step * 24
-            : clip.startTick + clip.lengthTicks > step * 24
-          : false,
-      ),
-    ).length,
-  );
-  let lastBeat = -1;
 
-  /** The beat pulse rides the transport snapshot; the hit flash below rides each sound. */
   $effect(() => {
     if (!editor.playing) {
       lastBeat = -1;
@@ -69,16 +114,15 @@
     const beat = Math.floor(editor.playheadTick / 96);
     if (!stage || !motion.allowed || beat === lastBeat) return;
     lastBeat = beat;
-    pulseBeat(stage.querySelectorAll<HTMLElement>('.sound-object[data-active="true"] .glyph'), {
-      accent: beat % 4 === 0,
-    });
+    const icon = stage.querySelector<HTMLElement>('.transport .icon');
+    if (icon) pulseBeat([icon], { accent: beat % 4 === 0 });
   });
 
   onMount(() =>
     editor.subscribeHits((hit) => {
       if (!hit.trackId || !stage) return;
       const object = stage.querySelector<HTMLElement>(
-        `.sound-object[data-track-id="${hit.trackId}"]`,
+        `.sound-object[data-track-id="${CSS.escape(hit.trackId)}"]`,
       );
       if (!object) return;
       flashHit(object, { strength: hit.kind === 'loop' ? 0.7 : 1 });
@@ -90,311 +134,214 @@
 
 <section class="play-world" aria-labelledby="play-title">
   <h1 id="play-title" class="sr-only">Play today's loop</h1>
-  {#if editor.captureStatus !== 'idle'}
-    <div class="capture-banner" role="status" transition:rise>
-      <span class:recording={editor.captureStatus === 'recording'} class="capture-light"
-      ></span><strong
-        >{editor.captureStatus === 'count-in'
-          ? 'COUNTING IN · STARTS NEXT BAR'
-          : 'LIVE TAKE · RECORDING'}</strong
-      ><span
-        >{editor.captureStatus === 'count-in'
-          ? 'Switch sounds on the field once it starts.'
-          : 'Switch sounds on the field to shape your take, then save it below.'}</span
-      >
-    </div>
-  {/if}
   <div class="stage-frame" bind:this={stage}>
-    <div class="stage-topline">
+    <div class="stage-topline" role="status">
+      <span>PLAY <i class:lit={editor.playing}></i></span>
+      {#if editor.captureStatus !== 'idle'}<strong class="capture-light"
+          >{editor.captureStatus === 'count-in'
+            ? 'COUNTING IN · STARTS NEXT BAR'
+            : 'LIVE TAKE · RECORDING'}</strong
+        >{/if}
       <span
-        >{editor.loading ? 'DECODING SOUNDS' : `${activeCount.toString().padStart(2, '0')} LIVE`}
-        <i class:lit={editor.playing}></i></span
+        >{editor.loading
+          ? 'DECODING SOUNDS'
+          : `${activeCount.toString().padStart(2, '0')} LIVE`}</span
       >
     </div>
-    <div class="objects">
-      {#each tracks as track, index (track.id)}
-        {@const sample = sampleById(track.sampleId)}
-        {@const status = editor.liveStatus(track.id)}
-        <button
-          type="button"
-          class="sound-object"
-          class:active={status === 'on'}
-          class:selected={editor.selectedTrackId === track.id}
-          class:pending={status.startsWith('queued')}
-          data-active={status === 'on'}
-          data-track-id={track.id}
-          use:enter={{ index, columns: 8, once: 'play-grid' }}
-          style={`--source:var(--audle-source-${index + 1})`}
-          use:press={{
-            disabled: editor.loading || !!editor.loadingError || editor.playingPerformance,
-          }}
-          aria-label={`${sample?.label ?? track.label}, ${status === 'empty' ? 'add to loop' : status === 'off' ? 'off, turn on' : status === 'on' ? 'on, turn off' : 'queued for next bar'}`}
-          aria-pressed={status === 'on'}
-          disabled={editor.loading || !!editor.loadingError || editor.playingPerformance}
-          onclick={() => void editor.toggleLive(track.id)}
-        >
-          <span class="object-number"
-            >{(index + 1).toString().padStart(2, '0')}
-            <span class="object-role">{sample?.role}</span></span
-          >
-          <span class="glyph" aria-hidden="true">
-            {#if Math.floor(index / 2) % 8 === 0}<span class="shape rings"
-                ><i></i><i></i><i></i></span
-              >
-            {:else if Math.floor(index / 2) % 8 === 1}<span class="shape coils"
-                ><i></i><i></i><i></i></span
-              >
-            {:else if Math.floor(index / 2) % 8 === 2}<span class="shape prism"><i></i><i></i></span
-              >
-            {:else if Math.floor(index / 2) % 8 === 3}<span class="shape wave"
-                ><i></i><i></i><i></i><i></i></span
-              >
-            {:else if Math.floor(index / 2) % 8 === 4}<span class="shape spike"
-                ><i></i><i></i><i></i><i></i></span
-              >
-            {:else if Math.floor(index / 2) % 8 === 5}<span class="shape bars"
-                ><i></i><i></i><i></i><i></i></span
-              >
-            {:else if Math.floor(index / 2) % 8 === 6}<span class="shape orbit"
-                ><i></i><i></i><i></i></span
-              >
-            {:else}<span class="shape lattice"><i></i><i></i><i></i><i></i></span>{/if}
-          </span>
-          <span class="object-bottom"
-            ><strong>{sample?.label ?? track.label}</strong>{#if status.startsWith('queued')}<span
-                >NEXT BAR</span
-              >{/if}</span
-          >
-          <span class="object-meter" aria-hidden="true"></span>
-        </button>
-      {/each}
-    </div>
-  </div>
-
-  <section class="play-controls" aria-label="Live controls">
-    <div class="control-heading">
-      <h2>{selected ? selected.label : 'Pick a sound'}</h2>
-      {#if selected}
-        <button
-          class="solo-control"
-          type="button"
-          aria-pressed={editor.queuedSolo[selected.id] ?? selected.controls.solo}
-          disabled={!selected.clips.length ||
-            editor.captureStatus === 'count-in' ||
-            editor.playingPerformance}
-          onclick={() => editor.toggleLiveSolo(selected.id)}
-          >SOLO {(editor.queuedSolo[selected.id] ?? selected.controls.solo) ? 'ON' : 'OFF'}{editor
-            .queuedSolo[selected.id] !== undefined
-            ? ' · NEXT BAR'
-            : ''}</button
-        >
-        <div class="offset" role="group" aria-label="Pattern offset">
-          <span>OFFSET</span>
+    <div class="stage-body">
+      <div class="objects" aria-label="Sixteen sounds">
+        {#each tracks as track, index (track.id)}
+          <SoundPad
+            {track}
+            {index}
+            status={editor.liveStatus(track.id)}
+            selected={editor.selectedTrackId === track.id}
+            disabled={editor.loading || !!editor.loadingError || editor.playingPerformance}
+            onToggle={(trackId) => void editor.toggleLive(trackId)}
+          />
+        {/each}
+      </div>
+      <section
+        class="play-controls"
+        aria-label="Selected sound controls"
+        style={sourceIndex >= 0 ? `--source:var(--audle-source-${sourceIndex + 1})` : undefined}
+      >
+        <div class="identity-row">
+          <h2>{selected ? selected.label : 'Pick a sound'}</h2>
           <button
             type="button"
-            aria-label="Offset pattern one step earlier"
-            disabled={!selected.clips.length ||
-              editor.captureStatus !== 'idle' ||
-              editor.playingPerformance}
-            use:press={{
-              disabled:
-                !selected.clips.length ||
-                editor.captureStatus !== 'idle' ||
-                editor.playingPerformance,
-            }}
-            onclick={() => editor.offsetLivePattern(selected.id, -1)}>−1</button
-          ><button
-            type="button"
-            aria-label="Offset pattern one step later"
-            disabled={!selected.clips.length ||
-              editor.captureStatus !== 'idle' ||
-              editor.playingPerformance}
-            use:press={{
-              disabled:
-                !selected.clips.length ||
-                editor.captureStatus !== 'idle' ||
-                editor.playingPerformance,
-            }}
-            onclick={() => editor.offsetLivePattern(selected.id, 1)}>+1</button
+            class="hear-control"
+            disabled={!selected ||
+              editor.loading ||
+              !!editor.loadingError ||
+              editor.playing ||
+              editor.playingPerformance ||
+              editor.captureStatus !== 'idle'}
+            use:press
+            onclick={() => void editor.auditionSelected()}
+            ><Icon name="play" size={14} /> Hear it</button
           >
         </div>
-      {/if}
+        <div class="source-row">
+          <p>
+            {sample
+              ? `${sample.role.toUpperCase()} · ${sample.kind === 'one-shot' ? 'ONE-SHOT' : 'LOOP'} · ${editor.loading ? 'Loading sound' : duration === undefined ? 'Duration unavailable' : `${duration < 1 ? duration.toFixed(2) : duration.toFixed(1)} sec`}`
+              : 'Select a sound'}<span>&nbsp;· {editor.composition.bars}-BAR ARRANGEMENT</span>
+          </p>
+          <button
+            type="button"
+            class="solo-control"
+            aria-pressed={!!selected && (editor.queuedSolo[selected.id] ?? selected.controls.solo)}
+            disabled={!selected?.clips.length ||
+              editor.loading ||
+              !!editor.loadingError ||
+              editor.captureStatus === 'count-in' ||
+              editor.playingPerformance}
+            use:press
+            onclick={() => selected && editor.toggleLiveSolo(selected.id)}
+            >Solo {selected && (editor.queuedSolo[selected.id] ?? selected.controls.solo)
+              ? 'on'
+              : 'off'}{selected && editor.queuedSolo[selected.id] !== undefined
+              ? ' · next bar'
+              : ''}</button
+          >
+        </div>
+        <div class="groove-heading">
+          <div>
+            <h3>Groove</h3>
+            <p>
+              {pattern === 'empty'
+                ? 'Choose how this sound moves.'
+                : pattern === 'custom'
+                  ? 'Your own rhythm.'
+                  : `${pattern[0]?.toUpperCase()}${pattern.slice(1)} feel for this sound.`}
+            </p>
+          </div>
+          <div class="offset" role="group" aria-label="Pattern offset">
+            <span>OFFSET <output>{offset}</output></span><button
+              type="button"
+              aria-label="Offset pattern one step earlier"
+              disabled={!selected?.clips.length || feelDisabled}
+              use:press={{ disabled: !selected?.clips.length || feelDisabled }}
+              onclick={() => selected && editor.offsetLivePattern(selected.id, -1)}>−1</button
+            ><button
+              type="button"
+              aria-label="Offset pattern one step later"
+              disabled={!selected?.clips.length || feelDisabled}
+              use:press={{ disabled: !selected?.clips.length || feelDisabled }}
+              onclick={() => selected && editor.offsetLivePattern(selected.id, 1)}>+1</button
+            >
+          </div>
+        </div>
+        <div class="patterns" role="group" aria-label="Pattern feel">
+          {#each LIVE_PATTERNS as option (option)}<button
+              type="button"
+              class:chosen={pattern === option}
+              disabled={feelDisabled}
+              aria-pressed={pattern === option}
+              use:press={{ disabled: feelDisabled }}
+              use:popOn={pattern === option}
+              onclick={() => selected && editor.chooseLivePattern(selected.id, option)}
+              >{option}</button
+            >{/each}
+        </div>
+        <div class="dials" aria-label="Sound tuning">
+          <Knob
+            dial
+            label="Level"
+            value={selected?.controls.gainDb ?? 0}
+            min={-24}
+            max={6}
+            step={0.5}
+            valueText={`${selected?.controls.gainDb ?? 0} dB`}
+            disabled={tuningDisabled}
+            onStart={() => editor.beginControlGesture()}
+            onChange={(gainDb) =>
+              selected && editor.updateSelectedTrackControls({ ...selected.controls, gainDb })}
+            onEnd={() => editor.endControlGesture()}
+          />
+          <Knob
+            dial
+            label="Pan"
+            value={selected?.controls.pan ?? 0}
+            min={-1}
+            max={1}
+            step={0.05}
+            valueText={!selected?.controls.pan
+              ? 'CENTER'
+              : `${selected.controls.pan < 0 ? 'LEFT' : 'RIGHT'} ${Math.round(Math.abs(selected.controls.pan) * 100)}`}
+            disabled={tuningDisabled}
+            onStart={() => editor.beginControlGesture()}
+            onChange={(pan) =>
+              selected && editor.updateSelectedTrackControls({ ...selected.controls, pan })}
+            onEnd={() => editor.endControlGesture()}
+          />
+          <Knob
+            dial
+            label="Tune"
+            value={selected?.controls.tuneSemitones ?? 0}
+            min={-12}
+            max={12}
+            step={1}
+            valueText={!selected?.controls.tuneSemitones
+              ? 'ORIGINAL'
+              : `${selected.controls.tuneSemitones > 0 ? '+' : '−'}${Math.abs(selected.controls.tuneSemitones)} ${Math.abs(selected.controls.tuneSemitones) === 1 ? 'STEP' : 'STEPS'}`}
+            disabled={tuningDisabled}
+            onStart={() => editor.beginControlGesture()}
+            onChange={(tuneSemitones) =>
+              selected &&
+              editor.updateSelectedTrackControls({ ...selected.controls, tuneSemitones })}
+            onEnd={() => editor.endControlGesture()}
+          />
+        </div>
+      </section>
     </div>
-    <div class="patterns" role="group" aria-label="Pattern feel">
-      {#each LIVE_PATTERNS as option (option)}
+    <div class="play-footer">
+      <div class="footer-main">
+        <button
+          class="transport"
+          type="button"
+          disabled={editor.loading || !!editor.loadingError}
+          use:press
+          onclick={() => void editor.togglePlayback()}
+          >{#if editor.playing}<Icon name="stop" /> Stop loop{:else}<Icon name="play" /> Play loop{/if}</button
+        ><button
+          class="record"
+          class:armed={editor.captureStatus !== 'idle'}
+          type="button"
+          aria-pressed={editor.captureStatus !== 'idle'}
+          disabled={editor.loading ||
+            !!editor.loadingError ||
+            editor.playingPerformance ||
+            !editor.composition.tracks.some((track) => track.clips.length)}
+          use:press
+          onclick={() =>
+            editor.captureStatus === 'idle' ? void editor.startCapture() : saveTake()}
+          ><Icon name="record" />{editor.captureStatus === 'idle'
+            ? editor.performance
+              ? 'Record new take'
+              : 'Record a take'
+            : editor.captureStatus === 'count-in'
+              ? 'Cancel count-in'
+              : 'Save take'}</button
+        >
+      </div>
+      <div class="next-actions">
         <button
           type="button"
-          class:chosen={pattern === option}
-          disabled={!selected || editor.captureStatus !== 'idle' || editor.playingPerformance}
-          aria-pressed={pattern === option}
-          use:press={{
-            disabled: !selected || editor.captureStatus !== 'idle' || editor.playingPerformance,
-          }}
-          use:popOn={pattern === option}
-          onclick={() => selected && editor.chooseLivePattern(selected.id, option)}
-          ><span class="pattern-mark" aria-hidden="true"
-            >{#each MARK_STEPS as step (step)}<i class:on={PATTERN_MARKS[option].includes(step)}
-              ></i>{/each}</span
-          ><strong>{option}</strong></button
+          class="share"
+          disabled={!editor.composition.tracks.some((track) => track.clips.length)}
+          use:press
+          onclick={onShare}><Icon name="share" /> Share</button
+        ><button type="button" aria-label="Go to Arrange" use:press onclick={onArrange}
+          >Arrange <Icon name="arrow-right" /></button
         >
-      {/each}
-    </div>
-    {#if selected}
-      <details class="fine-tune">
-        <summary>Fine-tune <Icon name="chevron-down" size={14} /></summary>
-        <fieldset
-          disabled={editor.captureStatus !== 'idle' || editor.playingPerformance}
-          class="tune-fields"
-        >
-          <label
-            >Level <input
-              aria-label="Level"
-              type="range"
-              min="-24"
-              max="6"
-              step="0.5"
-              value={selected.controls.gainDb}
-              oninput={(event) =>
-                editor.updateSelectedTrackControls({
-                  ...selected.controls,
-                  gainDb: Number(event.currentTarget.value),
-                })}
-            /></label
-          >
-          <label
-            >Pan <input
-              aria-label="Pan"
-              type="range"
-              min="-1"
-              max="1"
-              step="0.05"
-              value={selected.controls.pan}
-              oninput={(event) =>
-                editor.updateSelectedTrackControls({
-                  ...selected.controls,
-                  pan: Number(event.currentTarget.value),
-                })}
-            /></label
-          >
-          <label
-            >Tune <input
-              aria-label="Tune"
-              type="range"
-              min="-12"
-              max="12"
-              step="1"
-              value={selected.controls.tuneSemitones}
-              oninput={(event) =>
-                editor.updateSelectedTrackControls({
-                  ...selected.controls,
-                  tuneSemitones: Number(event.currentTarget.value),
-                })}
-            /></label
-          >
-        </fieldset>
-      </details>
-    {/if}
-    <div
-      class="pattern-strip"
-      role="img"
-      aria-label={`${selected?.label ?? 'No sound'} pattern: ${litSteps} of 16 steps`}
-    >
-      <div class="steps">
-        {#each STEPS as step (step)}<span
-            class:hit={!!selected?.clips.some(
-              (clip) =>
-                clip.startTick <= step * 24 &&
-                (clip.kind === 'hit'
-                  ? clip.startTick === step * 24
-                  : clip.startTick + clip.lengthTicks > step * 24),
-            )}
-            class:current={editor.playing && Math.floor(editor.playheadTick / 24) % 16 === step}
-          ></span>{/each}
       </div>
-    </div>
-  </section>
-
-  <div class="play-footer">
-    <div class="footer-main">
-      <button
-        class="transport"
-        type="button"
-        disabled={editor.loading || !!editor.loadingError}
-        use:press
-        onclick={() => void editor.togglePlayback()}
-        >{#if editor.playing}<Icon name="stop" /> Stop loop{:else}<Icon name="play" /> Play loop{/if}</button
-      >
-      <button
-        class="record"
-        class:armed={editor.captureStatus !== 'idle'}
-        type="button"
-        aria-pressed={editor.captureStatus !== 'idle'}
-        disabled={editor.loading ||
-          !!editor.loadingError ||
-          editor.playingPerformance ||
-          !editor.composition.tracks.some((track) => track.clips.length)}
-        use:press
-        onclick={() => (editor.captureStatus === 'idle' ? void editor.startCapture() : saveTake())}
-        ><Icon name="record" />
-        {editor.captureStatus === 'idle'
-          ? editor.performance
-            ? 'Record new take'
-            : 'Record a take'
-          : editor.captureStatus === 'count-in'
-            ? 'Cancel count-in'
-            : 'Save take'}</button
-      >
-    </div>
-    <div class="next-actions">
-      <button
-        type="button"
-        class="share"
-        disabled={!editor.composition.tracks.some((track) => track.clips.length)}
-        use:press
-        onclick={onShare}><Icon name="share" /> Share</button
-      ><button type="button" aria-label="Go to Arrange" use:press onclick={onArrange}
-        >Arrange <Icon name="arrow-right" /></button
-      >
     </div>
   </div>
 </section>
 
 <style>
-  .play-world {
-    inline-size: min(100% - 36px, 1220px);
-    margin: 0 auto;
-    padding: clamp(30px, 4vw, 56px) 0 56px;
-  }
-  .capture-banner {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin: -6px 0 18px;
-    padding: 12px 15px;
-    border: 1px solid var(--audle-record-light);
-    background: var(--audle-record-surface);
-    color: var(--audle-text);
-    font-size: 0.78rem;
-  }
-  .capture-banner strong {
-    font:
-      700 0.72rem ui-monospace,
-      monospace;
-    letter-spacing: 0.06em;
-  }
-  .capture-banner span:not(.capture-light) {
-    color: var(--audle-text-muted);
-  }
-  .capture-light {
-    inline-size: 9px;
-    block-size: 9px;
-    border-radius: 50%;
-    background: var(--audle-record-light);
-  }
-  .capture-light.recording {
-    background: var(--audle-record-light);
-  }
   .sr-only {
     position: absolute;
     inline-size: 1px;
@@ -403,499 +350,250 @@
     clip-path: inset(50%);
     white-space: nowrap;
   }
-  .stage-topline,
-  .object-number,
-  .object-bottom span {
-    font:
-      700 0.69rem/1.3 ui-monospace,
-      monospace;
-    letter-spacing: 0.1em;
+  .play-world {
+    inline-size: min(100% - 20px, 1060px);
+    margin: 0 auto;
+    padding: 8px 0 8px;
   }
   .stage-frame {
     overflow: hidden;
-    position: relative;
     border: 1px solid var(--audle-outline);
     background: var(--audle-deck-raised);
     box-shadow: var(--audle-deck-edge);
   }
   .stage-topline {
-    position: relative;
     display: flex;
-    justify-content: flex-end;
-    padding: 14px 20px;
-    color: var(--audle-text-muted);
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-block-size: 34px;
+    padding: 4px 14px;
     border-bottom: 1px solid var(--audle-grid-major);
+    color: var(--audle-text-muted);
+    font:
+      700 0.68rem ui-monospace,
+      monospace;
+    letter-spacing: 0.06em;
   }
   .stage-topline i {
     display: inline-block;
-    inline-size: 6px;
-    block-size: 6px;
+    inline-size: 7px;
+    block-size: 7px;
+    margin-inline-start: 5px;
     border-radius: 50%;
-    margin-inline-start: 7px;
     background: var(--audle-text-dim);
   }
   .stage-topline i.lit {
     background: var(--audle-accent);
   }
-  .objects {
-    position: relative;
-    display: grid;
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-    gap: 10px;
-    padding: 20px;
+  .capture-light {
+    color: var(--audle-record-light);
   }
-  .sound-object {
-    position: relative;
+  .stage-body {
+    display: grid;
+    grid-template-columns: minmax(0, 455px) minmax(0, 1fr);
+    gap: 14px;
+    padding: 10px;
+  }
+  .objects {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    inline-size: 100%;
+    aspect-ratio: 1;
+  }
+  .play-controls {
     display: flex;
     flex-direction: column;
-    align-items: stretch;
-    justify-content: space-between;
     min-inline-size: 0;
-    min-block-size: 168px;
-    padding: 12px;
+    padding: 2px 8px 0 4px;
+  }
+  .identity-row,
+  .source-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-inline-size: 0;
+  }
+  .identity-row h2 {
+    min-inline-size: 0;
+    margin: 0;
     overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 1.35rem;
+    line-height: 1.25;
+    letter-spacing: -0.035em;
+  }
+  .play-controls button {
+    cursor: pointer;
+  }
+  .play-controls button:disabled {
+    opacity: 0.48;
+    cursor: not-allowed;
+  }
+  .hear-control,
+  .solo-control,
+  .offset button {
+    flex: none;
+    min-block-size: 44px;
+    min-inline-size: 44px;
     border: 1px solid var(--audle-outline-subtle);
     background: var(--audle-control);
     color: var(--audle-text);
-    cursor: pointer;
-    text-align: left;
-    /* The flash ring sits on the inner edge and fades through --flash, which the hit motion drives. */
-    box-shadow: inset 0 0 0 3px oklch(var(--source) / var(--flash, 0));
-    /* Transform is owned by the press and flash motion, so it is not transitioned here. */
-    transition:
-      border-color 0.2s,
-      background 0.2s,
-      box-shadow 0.2s;
+    font-size: 0.72rem;
+    font-weight: 700;
   }
-  /* The bloom is a solid fill at low alpha, clipped by the pad's overflow. */
-  .sound-object::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: oklch(var(--source) / calc(var(--flash, 0) * 0.16));
-    pointer-events: none;
-  }
-  @media (hover: hover) {
-    .sound-object:hover:not(:disabled) {
-      border-color: oklch(var(--source) / 0.7);
-    }
-  }
-  .sound-object:global([data-pressed='true']) {
-    background: var(--audle-control-pressed);
-  }
-  .sound-object.active {
-    border-color: oklch(var(--source));
-    background: var(--audle-control-hover);
-    box-shadow:
-      inset 0 0 0 1px oklch(var(--source) / 0.32),
-      inset 0 0 0 3px oklch(var(--source) / var(--flash, 0));
-  }
-  .sound-object.selected:after {
-    content: '';
-    position: absolute;
-    inset: 4px;
-    border: 1px solid oklch(var(--source) / 0.44);
-    pointer-events: none;
-  }
-  .sound-object.pending {
-    border-style: dashed;
-  }
-  .sound-object:disabled {
-    cursor: not-allowed;
-    opacity: 0.66;
-  }
-  .object-number {
-    display: flex;
-    justify-content: space-between;
-    color: var(--audle-text-muted);
-  }
-  .object-role {
-    color: var(--audle-text-dim);
-    text-transform: uppercase;
-  }
-  .glyph {
-    display: grid;
-    place-items: center;
-    inline-size: 100%;
-    block-size: 76px;
-    color: oklch(var(--source));
-    opacity: 0.57;
-    transform-origin: center;
-  }
-  .glyph .shape {
-    transform: scale(0.82);
-  }
-  .active .glyph {
-    opacity: 1;
-  }
-  .shape {
-    position: relative;
-    display: grid;
-    place-items: center;
-    inline-size: 84px;
-    block-size: 84px;
-  }
-  .shape i {
-    position: absolute;
-    display: block;
-    border: 2px solid currentColor;
-  }
-  .rings i {
-    border-radius: 50%;
-    inline-size: 75%;
-    block-size: 75%;
-  }
-  .rings i:nth-child(2) {
-    inline-size: 48%;
-    block-size: 48%;
-  }
-  .rings i:nth-child(3) {
-    inline-size: 19%;
-    block-size: 19%;
-    background: currentColor;
-  }
-  .coils i {
-    inline-size: 75%;
-    block-size: 26%;
-    border-radius: 50%;
-    transform: rotate(-27deg);
-  }
-  .coils i:nth-child(2) {
-    transform: rotate(35deg);
-  }
-  .coils i:nth-child(3) {
-    inline-size: 22%;
-    block-size: 22%;
-    border-radius: 50%;
-    background: currentColor;
-  }
-  .prism i {
-    inline-size: 58%;
-    block-size: 58%;
-    transform: rotate(45deg);
-  }
-  .prism i:nth-child(2) {
-    inline-size: 33%;
-    block-size: 33%;
-    transform: rotate(45deg);
-    background: currentColor;
-    opacity: 0.5;
-  }
-  .wave i {
-    inline-size: 20%;
-    block-size: 62%;
-    border-radius: 50%;
-    transform: rotate(25deg);
-  }
-  .wave i:nth-child(1) {
-    left: 3%;
-  }
-  .wave i:nth-child(2) {
-    left: 24%;
-    block-size: 80%;
-  }
-  .wave i:nth-child(3) {
-    left: 48%;
-  }
-  .wave i:nth-child(4) {
-    left: 70%;
-    block-size: 38%;
-  }
-  .spike i {
-    inline-size: 38%;
-    block-size: 38%;
-    transform: rotate(45deg);
-  }
-  .spike i:nth-child(1) {
-    top: 2%;
-  }
-  .spike i:nth-child(2) {
-    left: 2%;
-  }
-  .spike i:nth-child(3) {
-    right: 2%;
-  }
-  .spike i:nth-child(4) {
-    bottom: 2%;
-  }
-  .bars i {
-    inline-size: 10%;
-    block-size: 70%;
-    transform: skew(-16deg);
-    background: currentColor;
-  }
-  .bars i:nth-child(1) {
-    left: 14%;
-    block-size: 35%;
-  }
-  .bars i:nth-child(2) {
-    left: 35%;
-  }
-  .bars i:nth-child(3) {
-    right: 35%;
-    block-size: 52%;
-  }
-  .bars i:nth-child(4) {
-    right: 14%;
-    block-size: 87%;
-  }
-  .orbit i {
-    inline-size: 80%;
-    block-size: 35%;
-    border-radius: 50%;
-    transform: rotate(47deg);
-  }
-  .orbit i:nth-child(2) {
-    transform: rotate(-47deg);
-  }
-  .orbit i:nth-child(3) {
-    inline-size: 15%;
-    block-size: 15%;
-    border-radius: 50%;
-    background: currentColor;
-  }
-  .lattice i {
-    inline-size: 65%;
-    block-size: 65%;
-    transform: rotate(15deg);
-  }
-  .lattice i:nth-child(2) {
-    transform: rotate(60deg);
-  }
-  .lattice i:nth-child(3) {
-    inline-size: 35%;
-    block-size: 35%;
-    transform: rotate(15deg);
-  }
-  .lattice i:nth-child(4) {
-    inline-size: 12%;
-    block-size: 12%;
-    border-radius: 50%;
-    background: currentColor;
-  }
-  .object-bottom {
-    display: grid;
+  .hear-control {
+    display: inline-flex;
+    align-items: center;
     gap: 5px;
+    padding-inline: 10px;
+    border-color: oklch(var(--source) / 0.7);
   }
-  .object-bottom strong {
-    font-size: clamp(0.78rem, 1.1vw, 0.95rem);
-    line-height: 1.15;
-    /* Two lines, so a longer sound name is readable instead of an ellipsis. */
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    line-clamp: 2;
-    -webkit-line-clamp: 2;
-    overflow: hidden;
-  }
-  .object-bottom span {
-    color: var(--audle-text-dim);
-    font-size: 0.58rem;
-  }
-  .active .object-bottom span {
+  .hear-control :global(.icon) {
     color: oklch(var(--source));
   }
-  .object-meter {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    inline-size: 100%;
-    block-size: 3px;
-    background: oklch(var(--source));
-    /* --level rests at 0.3 while the sound is on; each hit kicks it to 1 and lets it decay. */
-    transform: scaleX(var(--level, 0));
-    transform-origin: left;
+  .source-row {
+    min-block-size: 49px;
   }
-  .active .object-meter {
-    --level: 0.3;
+  .source-row p {
+    min-inline-size: 0;
+    margin: 0;
+    color: var(--audle-text-muted);
+    font:
+      700 0.63rem/1.4 ui-monospace,
+      monospace;
   }
-  .sound-object:not(.active) .object-meter {
-    transform: scaleX(0);
+  .source-row p span {
+    color: var(--audle-text-dim);
   }
-  .play-controls {
-    display: grid;
-    grid-template-columns: minmax(190px, 1fr) minmax(250px, 1.4fr);
-    gap: 20px 36px;
-    padding: 32px 0 22px;
-    border-bottom: 1px solid var(--audle-grid-major);
+  .solo-control {
+    padding-inline: 9px;
+    white-space: nowrap;
   }
-  .control-heading h2 {
-    margin: 7px 0 4px;
-    font-size: clamp(1.5rem, 2.5vw, 2.3rem);
-    letter-spacing: -0.05em;
+  .solo-control[aria-pressed='true'] {
+    border-color: oklch(var(--source));
+    background: color-mix(in srgb, var(--audle-control) 70%, oklch(var(--source)) 30%);
+  }
+  .groove-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-block-start: 8px;
+    padding-block-start: 10px;
+    border-top: 1px solid var(--audle-grid-major);
+  }
+  .groove-heading h3 {
+    margin: 0;
+    font-size: 1rem;
+  }
+  .groove-heading p {
+    margin: 2px 0 0;
+    color: var(--audle-text-muted);
+    font-size: 0.72rem;
+  }
+  .offset {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 3px;
+  }
+  .offset span {
+    margin-inline-end: 5px;
+    color: var(--audle-text-muted);
+    font:
+      700 0.6rem ui-monospace,
+      monospace;
+    white-space: nowrap;
+  }
+  .offset output {
+    color: oklch(var(--source));
+  }
+  .offset button:hover:not(:disabled),
+  .hear-control:hover:not(:disabled),
+  .solo-control:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--audle-control) 80%, oklch(var(--source)) 20%);
   }
   .patterns {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    align-self: center;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-block-start: 9px;
+    border: 1px solid var(--audle-outline-subtle);
+    background: var(--audle-control);
   }
   .patterns button {
-    display: grid;
-    gap: 9px;
-    justify-items: start;
-    min-block-size: 72px;
-    padding: 12px;
-    border: 1px solid var(--audle-outline-subtle);
-    background: var(--audle-control);
+    position: relative;
+    min-block-size: 44px;
+    padding: 5px;
+    border: 0;
+    border-inline-end: 1px solid var(--audle-outline-subtle);
+    border-block-end: 1px solid var(--audle-outline-subtle);
+    background: transparent;
     color: var(--audle-text);
-    text-align: left;
-    cursor: pointer;
+    font-size: 0.74rem;
+    font-weight: 700;
     text-transform: capitalize;
   }
+  .patterns button:nth-child(3n) {
+    border-inline-end: 0;
+  }
+  .patterns button:nth-last-child(-n + 3) {
+    border-block-end: 0;
+  }
+  .patterns button:hover:not(:disabled),
+  .patterns button:global([data-pressed='true']) {
+    background: color-mix(in srgb, var(--audle-control) 75%, oklch(var(--source)) 25%);
+  }
   .patterns button.chosen {
-    border-color: var(--audle-accent);
-    background: var(--audle-playback-surface);
+    background: color-mix(in srgb, var(--audle-control) 65%, oklch(var(--source)) 35%);
+    box-shadow: inset 0 -2px oklch(var(--source));
   }
-  .patterns button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-  .pattern-mark {
+  .dials {
     display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: 3px;
-    inline-size: 100%;
-    block-size: 12px;
-  }
-  .pattern-mark i {
-    block-size: 100%;
-    background: var(--audle-control-pressed);
-    border: 1px solid var(--audle-outline-subtle);
-  }
-  .pattern-mark i.on {
-    background: var(--audle-accent-dim);
-    border-color: var(--audle-accent-dim);
-  }
-  .patterns button.chosen .pattern-mark i.on {
-    background: var(--audle-accent);
-    border-color: var(--audle-text);
-  }
-  .fine-tune {
-    align-self: start;
-  }
-  .fine-tune summary {
-    cursor: pointer;
-    min-block-size: 36px;
-    color: var(--audle-text-muted);
-    font-size: 0.82rem;
-  }
-  .fine-tune summary :global(.icon) {
-    margin-inline-start: 6px;
-  }
-  .tune-fields {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    padding: 10px 0;
-    min-inline-size: 0;
-    margin: 0;
-    border: 0;
-  }
-  .tune-fields label {
-    display: grid;
-    gap: 4px;
-    font-size: 0.72rem;
-    color: var(--audle-text-muted);
-  }
-  .tune-fields input {
-    accent-color: var(--audle-accent);
-  }
-  .solo-control {
-    margin-block-start: 14px;
-    min-block-size: 44px;
-    padding: 8px 14px;
-    border: 1px solid var(--audle-accent-dim);
-    background: var(--audle-control);
-    color: var(--audle-text-muted);
-    cursor: pointer;
-    font:
-      700 0.72rem ui-monospace,
-      monospace;
-  }
-  .solo-control[aria-pressed='true'] {
-    border-color: var(--audle-accent);
-    background: var(--audle-playback-surface);
-  }
-  .offset {
-    display: inline-flex;
-    align-items: center;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
-    margin: 14px 0 0 10px;
-    vertical-align: bottom;
-    color: var(--audle-text-muted);
-    font:
-      700 0.72rem ui-monospace,
-      monospace;
-    letter-spacing: 0.1em;
-  }
-  .offset span {
-    margin-inline-end: 2px;
-  }
-  .offset button {
-    min-inline-size: 44px;
-    min-block-size: 44px;
-    border: 1px solid var(--audle-accent-dim);
-    background: var(--audle-control);
-    color: var(--audle-text);
-    cursor: pointer;
-    font: inherit;
-    letter-spacing: 0;
-  }
-  .offset button:hover:not(:disabled) {
-    background: var(--audle-control-hover);
-  }
-  .offset button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-  .pattern-strip {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    min-inline-size: 0;
-  }
-  .steps {
-    display: grid;
-    grid-template-columns: repeat(16, 1fr);
-    gap: 4px;
-    flex: 1;
-  }
-  .steps span {
-    block-size: 13px;
-    background: var(--audle-control-pressed);
-    border: 1px solid var(--audle-outline-subtle);
-  }
-  .steps span.hit {
-    background: var(--audle-accent-dim);
-    border-color: var(--audle-accent-dim);
-  }
-  .steps span.current {
-    box-shadow: 0 0 0 2px var(--audle-text);
+    margin-block-start: auto;
+    padding-block-start: 10px;
+    border-top: 1px solid var(--audle-grid-major);
   }
   .play-footer {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding-top: 20px;
+    gap: 10px;
+    min-block-size: 64px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--audle-grid-major);
+    background: var(--audle-deck);
+  }
+  .footer-main,
+  .next-actions {
+    display: flex;
+    gap: 7px;
   }
   .play-footer button {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    gap: 7px;
     min-block-size: 48px;
-    padding: 0 18px;
+    padding-inline: 14px;
     border: 1px solid var(--audle-outline);
     background: var(--audle-control);
     box-shadow: var(--audle-control-rest);
     color: var(--audle-text);
     cursor: pointer;
+    font-size: 0.78rem;
     font-weight: 700;
+    white-space: nowrap;
   }
   .play-footer button:disabled {
     opacity: 0.45;
     cursor: not-allowed;
   }
-  /* Playing the loop is the primary action on this screen. */
   .play-footer .transport {
     border-color: var(--audle-accent);
     background: var(--audle-accent);
@@ -908,63 +606,49 @@
     border-color: var(--audle-record-light);
     background: var(--audle-record-surface);
   }
-  .play-footer .share {
-    border-color: var(--audle-accent-dim);
-  }
-  .footer-main,
-  .next-actions {
-    display: flex;
-    gap: 8px;
-  }
-  @media (max-width: 720px) {
+  @media (max-width: 899px) {
     .play-world {
-      inline-size: min(100% - 24px, 600px);
-      padding-top: 30px;
+      inline-size: min(100% - 20px, 600px);
+    }
+    .stage-body {
+      grid-template-columns: minmax(0, 1fr);
     }
     .objects {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 6px;
-      padding: 10px;
-    }
-    .sound-object {
-      min-block-size: 118px;
-      padding: 8px;
-    }
-    .glyph {
-      block-size: 42px;
-    }
-    .object-number {
-      gap: 6px;
-      letter-spacing: 0.04em;
-    }
-    .object-bottom strong {
-      font-size: 0.7rem;
-      letter-spacing: -0.01em;
-    }
-    .glyph .shape {
-      inline-size: 40px;
-      block-size: 40px;
-      transform: none;
-    }
-    .stage-topline {
-      padding: 12px;
+      max-inline-size: 465px;
+      margin-inline: auto;
     }
     .play-controls {
-      display: flex;
-      flex-direction: column;
-      gap: 18px;
+      min-block-size: 370px;
+      padding: 4px;
     }
-    .patterns button {
-      min-block-size: 69px;
-      padding: 9px;
+  }
+  @media (max-width: 540px) {
+    .stage-topline {
+      font-size: 0.58rem;
     }
-    .pattern-strip {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 9px;
+    .objects {
+      gap: 4px;
     }
-    .steps {
-      gap: 3px;
+    .play-controls {
+      min-block-size: 380px;
+    }
+    .source-row p {
+      font-size: 0.58rem;
+    }
+    .source-row p span {
+      display: block;
+    }
+    .patterns {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .patterns button:nth-child(3n) {
+      border-inline-end: 1px solid var(--audle-outline-subtle);
+    }
+    .patterns button:nth-child(2n) {
+      border-inline-end: 0;
+    }
+    .patterns button:nth-last-child(3) {
+      border-block-end: 1px solid var(--audle-outline-subtle);
     }
     .play-footer {
       flex-wrap: wrap;
@@ -975,14 +659,7 @@
     }
     .play-footer button {
       flex: 1;
-      justify-content: center;
-      padding-inline: 10px;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .sound-object,
-    .object-meter {
-      transition: none;
+      padding-inline: 6px;
     }
   }
 </style>

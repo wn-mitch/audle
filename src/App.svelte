@@ -516,7 +516,7 @@
   }
   nav button.current {
     color: var(--audle-text);
-    border-color: var(--audle-accent);
+    border-color: var(--audle-text);
   }
   nav .help {
     display: grid;

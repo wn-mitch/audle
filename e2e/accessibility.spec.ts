@@ -39,7 +39,7 @@ test('keeps Play, Arrange, the share sheet, and Help free of serious accessibili
   await page.getByRole('button', { name: 'Share', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Share' })).toBeVisible();
   await expectNoSeriousViolations(page);
-  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
 
   await page.getByRole('button', { name: 'Help' }).click();
   await expectNoSeriousViolations(page);

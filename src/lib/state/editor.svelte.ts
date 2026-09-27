@@ -150,6 +150,10 @@ export class EditorState {
     return this.composition.tracks.find((track) => track.id === this.selectedTrackId);
   }
 
+  sourceDurationSeconds(sampleId: string): number | undefined {
+    return this.engine.sourceDurationSeconds(sampleId);
+  }
+
   get canUndo(): boolean {
     return this.undoStack.length > 0;
   }
@@ -459,6 +463,22 @@ export class EditorState {
     if (next) await this.engine.unlock();
     this.recording = next;
     this.engine.armRecord(next);
+  }
+
+  /** Auditions the selected source without adding or changing a clip. */
+  auditionSelected(): void {
+    const track = this.selectedTrack;
+    if (
+      !track ||
+      this.loading ||
+      this.loadingError ||
+      this.playing ||
+      this.playingPerformance ||
+      this.recording ||
+      this.captureStatus !== 'idle'
+    )
+      return;
+    this.engine.audition(track.sampleId);
   }
 
   pressPad(sampleId: string): void {

@@ -35,6 +35,7 @@ export interface AudioEngine {
   stop(): void;
   armRecord(enabled: boolean): void;
   audition(sampleId: string): void;
+  sourceDurationSeconds(sampleId: string): number | undefined;
   absoluteTick(): number;
   scheduleTrackControls(
     trackId: string,
@@ -219,6 +220,10 @@ export class ToneAudioEngine implements AudioEngine {
         source.start();
       }
     });
+  }
+
+  sourceDurationSeconds(sampleId: string): number | undefined {
+    return this.buffers.get(sampleId)?.duration;
   }
 
   setTrackControls(trackId: string, controls: TrackControls): void {

@@ -3,26 +3,26 @@
   color: var(--audle-text);
   background: var(--audle-page);
   color-scheme: dark;
-  /* Surfaces: a teal-black instrument deck. */
-  --audle-page: oklch(0.13 0.014 232);
-  --audle-deck: oklch(0.195 0.02 230);
-  --audle-deck-raised: oklch(0.231 0.023 233);
-  --audle-control: oklch(0.27 0.023 225);
-  --audle-control-hover: oklch(0.307 0.024 209);
-  --audle-control-pressed: oklch(0.215 0.02 225);
-  --audle-well: oklch(0.105 0.012 232);
-  --audle-well-raised: oklch(0.14 0.014 232);
-  --audle-outline: oklch(0.476 0.028 183);
-  --audle-outline-subtle: oklch(0.391 0.028 199);
-  --audle-edge-light: oklch(0.7 0.026 190 / 0.3);
-  --audle-edge-shadow: oklch(0.05 0.01 232 / 0.82);
-  --audle-text: oklch(0.93 0.017 184);
-  --audle-text-muted: oklch(0.818 0.022 197);
-  --audle-text-dim: oklch(0.71 0.023 204);
-  /* Accent: the mint that marks playback, chosen states and the primary action. */
+  /* Surfaces: a near-neutral graphite instrument deck. */
+  --audle-page: oklch(0.125 0.004 255);
+  --audle-deck: oklch(0.185 0.005 255);
+  --audle-deck-raised: oklch(0.225 0.006 255);
+  --audle-control: oklch(0.275 0.007 255);
+  --audle-control-hover: oklch(0.31 0.007 255);
+  --audle-control-pressed: oklch(0.212 0.006 255);
+  --audle-well: oklch(0.105 0.004 255);
+  --audle-well-raised: oklch(0.14 0.005 255);
+  --audle-outline: oklch(0.465 0.009 255);
+  --audle-outline-subtle: oklch(0.36 0.008 255);
+  --audle-edge-light: oklch(0.72 0.004 255 / 0.25);
+  --audle-edge-shadow: oklch(0.05 0.003 255 / 0.8);
+  --audle-text: oklch(0.94 0.004 255);
+  --audle-text-muted: oklch(0.79 0.007 255);
+  --audle-text-dim: oklch(0.68 0.008 255);
+  /* Accent: mint marks playback, focus and the primary action. */
   --audle-accent: oklch(0.873 0.088 157);
   --audle-accent-dim: oklch(0.667 0.05 177);
-  --audle-accent-ink: oklch(0.22 0.03 175);
+  --audle-accent-ink: oklch(0.18 0.006 255);
   --audle-glow: oklch(0.873 0.088 157 / 0.22);
   /* Role colours, contained inside clips, pads and rings. */
   --audle-loop-surface: oklch(0.27 0.05 302);
@@ -36,19 +36,19 @@
   --audle-record-surface: oklch(0.3 0.06 40);
   --audle-record-light: oklch(0.772 0.136 34);
   --audle-focus: oklch(0.85 0.1 160);
-  --audle-disabled: oklch(0.22 0.016 225);
-  --audle-disabled-ink: oklch(0.66 0.02 200);
-  --audle-grid-major: oklch(0.411 0.03 186);
-  --audle-grid-minor: oklch(0.3 0.024 209);
+  --audle-disabled: oklch(0.22 0.006 255);
+  --audle-disabled-ink: oklch(0.66 0.008 255);
+  --audle-grid-major: oklch(0.411 0.009 255);
+  --audle-grid-minor: oklch(0.3 0.007 255);
   --audle-deck-edge: inset 0 1px 0 var(--audle-edge-light), inset 0 -2px 0 var(--audle-edge-shadow);
   --audle-control-rest:
     inset 0 1px 0 var(--audle-edge-light), inset 0 -2px 0 var(--audle-edge-shadow);
   --audle-control-contact:
-    inset 0 2px 3px var(--audle-edge-shadow), inset 0 1px 0 oklch(0.04 0.008 232 / 0.45);
+    inset 0 2px 3px var(--audle-edge-shadow), inset 0 1px 0 oklch(0.04 0.003 255 / 0.45);
   /* Sixteen source hues as bare OKLCH triplets: `oklch(var(--audle-source-3) / 0.4)`.
      Sources arrive two per role, so each pair shares a hue family. */
-  --audle-source-1: 0.8 0.12 160;
-  --audle-source-2: 0.8 0.12 168;
+  --audle-source-1: 0.77 0.16 265;
+  --audle-source-2: 0.77 0.16 274;
   --audle-source-3: 0.76 0.14 300;
   --audle-source-4: 0.76 0.14 292;
   --audle-source-5: 0.82 0.13 62;
