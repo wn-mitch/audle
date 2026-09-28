@@ -13,7 +13,7 @@ import type { OperationResult } from './operations';
 
 export type LivePattern = 'steady' | 'sparse' | 'moving' | 'offbeat' | 'dense' | 'halftime';
 
-/** The Play strip shows these in order, and `patternOf` matches in the same order. */
+/** The Play feel controls show these in order, and `patternOf` matches in the same order. */
 export const LIVE_PATTERNS: readonly LivePattern[] = [
   'steady',
   'sparse',

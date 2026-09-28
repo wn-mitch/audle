@@ -26,7 +26,7 @@ Buoyant, tactile, clever. The instrument rewards curiosity with sound and visibl
 
 ## Motion register
 
-Motion conveys state and rewards a gesture: press compression, a flash on the pad whose sound just played, a beat pulse, a queued-change cue. One exception is deliberate: the sound field and pad bank enter with a short diagonal stagger once per page load, so the instrument arrives with a sense of physical presence. That entrance is the only orchestrated sequence in the product; nothing else animates on load, and all of it disappears under reduced motion.
+Motion conveys a real state or gesture. An audible pad alone flashes and moves its meter from the audio hit event; the transport icon alone follows the beat while playback runs; hover and press follow the pointer or keyboard gesture; queued changes remain visibly queued. The 4×4 pad bank may enter once with a diagonal stagger per page load. There is no fabricated idle activity or duplicate animated performance display. Under reduced motion, transforms, flashes, beat pulses, and entrance motion stop while selected, queued, pressed, focused, and meter cues remain static and visible. Primary targets remain at least 48 by 48 CSS pixels and compact controls at least 44 by 44.
 
 ## Design Principles
 

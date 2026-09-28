@@ -2,7 +2,7 @@
 
 ## System
 
-**Teal Signal Deck** is an opaque black-anodized music instrument. Teal near-blacks form a quiet physical deck; a single mint accent marks playback, chosen states and the primary action, and each of the sixteen daily sources carries its own hue, contained inside its pad, clip, meter and active edge. It is not a neon-club page, retro handheld, or toy.
+**Graphite Signal Deck** is an opaque, near-neutral graphite music instrument. Its structural surfaces and text stay quiet so the sixteen sound sources can read as the performance field. Mint marks playback and focus; the cobalt first pair establishes the default beat; each source hue identifies its pad and selected controls. Recording stays coral, and Arrange retains its ultraviolet loop, cyan one-shot, coral selection, mint playback, and warm-red recording/error roles. It is not a neon-club page, retro handheld, toy, dashboard, or DAW.
 
 ## Color tokens
 
@@ -10,48 +10,55 @@ Tokens live in `src/app.css` and are the only source of colour; components never
 
 ```css
 :root {
-  --audle-page: oklch(0.13 0.014 232);
-  --audle-deck: oklch(0.195 0.02 230);
-  --audle-deck-raised: oklch(0.231 0.023 233);
-  --audle-control: oklch(0.27 0.023 225);
-  --audle-well: oklch(0.105 0.012 232);
-  --audle-outline: oklch(0.476 0.028 183);
-  --audle-text: oklch(0.93 0.017 184);
-  --audle-text-muted: oklch(0.818 0.022 197);
-  --audle-accent: oklch(0.873 0.088 157);
-  --audle-accent-dim: oklch(0.667 0.05 177);
-  --audle-accent-ink: oklch(0.22 0.03 175);
-  --audle-glow: oklch(0.873 0.088 157 / 0.22);
-  --audle-loop-light: oklch(0.74 0.16 302);
-  --audle-one-shot-light: oklch(0.8 0.12 215);
-  --audle-selection-light: oklch(0.75 0.16 32);
-  --audle-playback-light: var(--audle-accent);
-  --audle-record-light: oklch(0.772 0.136 34);
-  --audle-focus: oklch(0.85 0.1 160);
-  /* Sixteen source hues as bare triplets, two per role, used as oklch(var(--audle-source-N) / a). */
-  --audle-source-1: 0.8 0.12 160;
-  --audle-source-16: 0.85 0.14 120;
+  --audle-page: oklch(0.125 0.004 255);
+  --audle-deck: oklch(0.185 0.005 255);
+  --audle-deck-raised: oklch(0.225 0.006 255);
+  --audle-control: oklch(0.275 0.007 255);
+  --audle-control-hover: oklch(0.31 0.007 255);
+  --audle-control-pressed: oklch(0.212 0.006 255);
+  --audle-well: oklch(0.105 0.004 255);
+  --audle-well-raised: oklch(0.14 0.005 255);
+  --audle-outline: oklch(0.465 0.009 255);
+  --audle-outline-subtle: oklch(0.36 0.008 255);
+  --audle-edge-light: oklch(0.72 0.004 255 / 0.25);
+  --audle-edge-shadow: oklch(0.05 0.003 255 / 0.8);
+  --audle-text: oklch(0.94 0.004 255);
+  --audle-text-muted: oklch(0.79 0.007 255);
+  --audle-text-dim: oklch(0.68 0.008 255);
+  --audle-accent-ink: oklch(0.18 0.006 255);
+  --audle-disabled: oklch(0.22 0.006 255);
+  --audle-disabled-ink: oklch(0.66 0.008 255);
+  --audle-grid-major: oklch(0.411 0.009 255);
+  --audle-grid-minor: oklch(0.3 0.007 255);
+  --audle-control-contact:
+    inset 0 2px 3px var(--audle-edge-shadow), inset 0 1px 0 oklch(0.04 0.003 255 / 0.45);
+  --audle-source-1: 0.77 0.16 265;
+  --audle-source-2: 0.77 0.16 274;
 }
 ```
+
+Mint remains `--audle-accent`, its dim/playback variants, and focus. The other fourteen source hues remain source-specific. Play uses source-tinted solid pad faces, glyphs, active edges, meters, and selected controls; colour always has a label, shape, line treatment, or ARIA state beside it.
 
 ## Rules
 
 - Use solid fills only. No gradients, glass, chrome, coloured page fog, beige/brown surfaces, retro bezels, or toy offset shadows.
-- Bright colour must be clipped to a glyph, waveform, meter, hard ring, or the owning element's inner edge. A hit bloom is allowed only inside the pad that fired, via `--audle-glow` or the source hue at low alpha, and never bleeds onto the page. Colour never stands alone: pair it with an icon, label, line treatment, shape, or ARIA state.
-- In Arrange, loop is ultraviolet, one-shot is electric cyan, selection is hot coral, playback is mint, and recording/error is warm red. Play's sixteen sound objects each use their `--audle-source-N` hue, confined to their glyph, active edge, flash ring and meter; a role's pair shares a hue family and a glyph.
-- Role controls stay dark at rest. Selection preserves loop or hit identity and adds a coral dashed ring.
-- Use `--audle-text` for primary text and `--audle-text-muted` only for secondary metadata on dark surfaces.
-- Focus is a 3px visible ring.
-- Motion uses only transform, opacity and custom properties. Press is a quick compression (`--motion-press`); release and pop-in may use a low-bounce spring (damping ≥ 20, no visible overshoot past ~3%) or an ease-out-quint fallback. No elastic or high-bounce easing. Beat and hit motion follow the audio transport through `Tone.getDraw`, never a timer.
-- The sound field and pad bank may enter with a diagonal stagger once per page load; nothing else animates on load.
-- Depth comes from the inset deck-edge and control tokens only. No drop shadows or blur halos on panels, cards or docks.
-- Icons come from the shared 16px stroke set (`Icon.svelte`); text glyphs and emoji never stand in for icons.
-- With reduced motion, preserve every static state cue (pressed contact shadow, active ring, lit meter) while removing compression, entrances, hit flashes, beat pulsing, and playhead sweeps.
+- Bright colour is contained by its owning element: a pad glyph, meter, hard ring, active edge, or selected control. A hit bloom may appear only inside the audible pad that fired, never on the page.
+- Use `--audle-text` for primary text and `--audle-text-muted` for secondary metadata on dark surfaces. Focus is a 3px visible ring, and non-colour cues remain required.
+- Depth comes only from the inset deck and control tokens. Do not use panel, card, or dock drop shadows or blur halos.
+- Icons come from the shared 16px stroke set (`Icon.svelte`); text glyphs and emoji do not substitute for icons.
 
 ## Layout
 
-Two surfaces and one sheet. Play is the entry: an 8×2 sound field on desktop and tablet, 4×4 on phone, the selected sound's feels, offset and pattern strip beneath it, and a footer with Play, Record a take, Share and Arrange. Arrange retains the 300px pad bank, flexible precision timeline, and 260px tuning deck on desktop, with the transport and selection actions pinned to the bottom of the deck at every width; phone and tablet put the timeline first with the pad bank as a horizontal strip beneath it. The share sheet, opened from either surface, holds the loop and take links, WAV downloads, and loops shared to this device. Help is a header icon that starts the guided remix; a shared link lands on the shared player, which can be remixed into the maker's own draft.
+Two surfaces and one sheet. Play is a centered compact deck: a 4×4 bank is the main performance surface, with one unboxed selected-sound strip alongside it and transport in the footer. The strip keeps Hear it beside the name, Solo beside source kind and decoded-source seconds, Offset beside Groove, six connected text feel controls, and three small visible dials. Decoded-source duration is sample metadata, not the four-bar arrangement length. Play has no step grid, waveform, duplicate performer/ensemble display, or precision clip editor; Arrange owns exact clip edits.
+
+At 1280×720 the default Play deck does not scroll. Below 900px the instrument stacks while retaining the 4×4 bank; phone layouts may scroll vertically but never horizontally. Play targets are at least 48px and compact controls at least 44px. Arrange, Share, Help, and the shared player retain their existing layouts and role colours.
+
+## Motion
+
+Motion follows a real cause. A pad flash and meter kick follow its audible hit through `EditorState.subscribeHits` and `Tone.getDraw`; the transport icon alone receives beat pulse while playing; hover and press follow the pointer or keyboard gesture. The pad bank may enter once per page load with a diagonal stagger. There is no fabricated idle animation, duplicate animated sound display, or load choreography beyond that entrance.
+
+Use only transform, opacity, and custom properties. Press is a quick compression (`--motion-press`); release and pop-in may use a low-bounce spring (damping ≥ 20, no visible overshoot past ~3%) or `--ease-out-quint`. Under reduced motion, remove lifts, compression, entrances, hit flashes, beat pulses, and playhead sweeps while retaining static pressed, selected, queued, meter, and focus cues.
 
 ## Components
 
-Sound objects, pads, timeline clips, transport controls, knobs, gallery rows, and notices are tactile dark surfaces with hard structural separators. Each object pairs its shape, number, label, role, and active state; a queued state says “Next bar.” The Play pattern strip keeps precision editing optional. Arrange's starter action is “Remix today’s starter”; voice cloning is “Add a layer”; repeat is “Fill the loop”; local favorite is “Your pick”; a shared loop offers “Remix this”. The one thing a maker tunes is a “sound” everywhere, never a voice or a track in copy.
+Sound objects, timeline clips, transport controls, knobs, gallery rows, and notices are tactile dark surfaces with hard structural separators. Each sound object pairs its number, short label, role, and active state; queued state says “Next bar.” Sound is the user-facing noun everywhere. Arrange calls cloning “Add a layer,” repeat “Fill the loop,” and its starter action “Remix today’s starter”; a shared loop offers “Remix this.”

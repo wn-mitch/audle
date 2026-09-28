@@ -19,7 +19,7 @@ export interface BeatMotion {
   /** Lights the element for one sound: the glyph pops, the inner ring and bloom flash through
    * `--flash`, and `data-hit` is set for the flash's duration as a hook for tests. */
   flashHit(element: MotionTarget, options?: { strength?: number }): void;
-  /** A beat-locked pulse on each glyph; the downbeat gets a slightly larger accent. */
+  /** A beat-locked pulse on the transport icon; the downbeat gets a slightly larger accent. */
   pulseBeat(elements: Iterable<MotionTarget>, options?: { accent?: boolean }): void;
   /** Kicks `--level` to `peak` and lets it decay to `floor`, for a meter bar scaled by that
    * property. */
@@ -36,6 +36,8 @@ export const createBeatMotion = (runner: MotionRunner): BeatMotion => {
       element.setAttribute('data-hit', 'true');
       runner.animate(glyph as HTMLElement, {
         scale: [1, Number((1 + 0.14 * strength).toFixed(3)), 1],
+        translateY: [0, -3 * strength, 0],
+        rotate: ['0deg', `${4 * strength}deg`, '0deg'],
         duration: DURATION.flash,
         ease: EASE.flash,
         composition: 'replace',

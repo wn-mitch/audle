@@ -15,6 +15,7 @@ class FakeAudioEngine implements AudioEngine {
   controls: Array<{ trackId: string; controls: TrackControls }> = [];
   armed = false;
   playing = false;
+  durations = new Map<string, number>();
   tick = 0;
   private scheduled: Array<{ tick: number; callback: (tick: number) => void }> = [];
   private readonly listeners = new Set<(snapshot: TransportSnapshot) => void>();
@@ -66,6 +67,9 @@ class FakeAudioEngine implements AudioEngine {
   }
   audition(sampleId: string): void {
     this.auditioned.push(sampleId);
+  }
+  sourceDurationSeconds(sampleId: string): number | undefined {
+    return this.durations.get(sampleId);
   }
   setTrackControls(trackId: string, controls: TrackControls): void {
     this.controls.push({ trackId, controls });
@@ -132,6 +136,27 @@ describe('EditorState', () => {
     expect(state.composition.tracks[12]!.clips).toHaveLength(0);
     state.redo();
     expect(encodeShare(state.composition)).toBe(afterRecord);
+    state.destroy();
+  });
+
+  it('auditions the selected source without changing the loop and refuses armed recording', async () => {
+    const engine = new FakeAudioEngine();
+    const challenge = challengeForDate('2026-08-12');
+    const state = new EditorState(engine, challenge);
+    engine.durations.set(challenge.sampleIds[0]!, 0.48);
+    await state.loadAudio();
+    const before = encodeShare(state.composition);
+
+    expect(state.sourceDurationSeconds(challenge.sampleIds[0]!)).toBe(0.48);
+    state.auditionSelected();
+    expect(engine.auditioned).toEqual([challenge.sampleIds[0]]);
+    expect(encodeShare(state.composition)).toBe(before);
+    expect(state.canUndo).toBe(false);
+
+    await state.toggleRecording();
+    state.auditionSelected();
+    expect(engine.auditioned).toEqual([challenge.sampleIds[0]]);
+    expect(encodeShare(state.composition)).toBe(before);
     state.destroy();
   });
 
