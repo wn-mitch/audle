@@ -724,6 +724,9 @@
     .patterns button:nth-child(2n) {
       border-inline-end: 0;
     }
+    .dials {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     .patterns button:nth-last-child(3) {
       border-block-end: 1px solid var(--audle-outline-subtle);
     }

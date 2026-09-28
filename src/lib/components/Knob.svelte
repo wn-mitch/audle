@@ -69,7 +69,7 @@
           style={`stroke-dasharray: ${progress * 75} 100`}
         />
       </svg>
-      <span class="dial-needle" style={`--needle-angle: ${-135 + progress * 270}deg`}></span>
+      <span class="dial-rotor" style={`--needle-angle: ${-135 + progress * 270}deg`}></span>
     </span>
   {/if}
   <span class="label">{label}</span>
@@ -167,11 +167,14 @@
     grid-column: 1;
     grid-row: 1 / 4;
     position: relative;
-    place-self: center;
     block-size: 48px;
     inline-size: 48px;
+    border-radius: 50%;
+    background: var(--audle-well);
   }
   .dial-arc {
+    position: absolute;
+    inset: 0;
     display: block;
     block-size: 100%;
     inline-size: 100%;
@@ -190,13 +193,35 @@
     stroke: oklch(var(--source, var(--audle-source-1)));
     stroke-linecap: round;
   }
-  .dial-needle {
+  .dial-rotor {
     position: absolute;
-    inset: 7px 23px;
-    background: oklch(var(--source, var(--audle-source-1)));
-    border-radius: 999px;
+    inset: 8px;
+    border: 1px solid var(--audle-outline);
+    border-radius: 50%;
+    background: var(--audle-control);
+    box-shadow:
+      inset 0 2px 0 var(--audle-edge-light),
+      inset 0 -3px 0 var(--audle-edge-shadow);
     transform: rotate(var(--needle-angle));
-    transform-origin: center 17px;
+  }
+  .dial-rotor::after {
+    position: absolute;
+    inset-block-start: 3px;
+    inset-inline-start: calc(50% - 3px);
+    block-size: 10px;
+    inline-size: 6px;
+    border-radius: 2px;
+    background: oklch(var(--source, var(--audle-source-1)));
+    content: '';
+  }
+  .dial:has(input:hover:not(:disabled)) .dial-rotor {
+    background: var(--audle-control-hover);
+  }
+  .dial:has(input:active) .dial-rotor {
+    background: var(--audle-control-pressed);
+  }
+  .dial.disabled .dial-face {
+    opacity: 0.55;
   }
   .dial .label,
   .dial output,
