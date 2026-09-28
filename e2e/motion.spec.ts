@@ -1,26 +1,42 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const hitCount = (page: Page) => page.evaluate(() => window.__audleDebug?.hitCount() ?? 0);
-const lastHitTick = (page: Page) => page.evaluate(() => window.__audleDebug?.lastHit()?.tick ?? -1);
 const transportTick = (page: Page) =>
   page.evaluate(() => window.__audleDebug?.transportTick() ?? 0);
+const steadyKickHits = async (page: Page) => {
+  const facts = await page.locator('.source-row p').textContent();
+  const bars = Number(facts?.match(/(\d+)-BAR ARRANGEMENT/u)?.[1]);
+  expect(bars).toBeGreaterThan(0);
+  return bars * 4;
+};
 
 test('hit events land on the frame the sound plays', async ({ page }) => {
   await page.goto('/');
   const sound = page.locator('.sound-object').nth(8);
   await expect(sound).toBeEnabled();
+  const totalTicks = (await steadyKickHits(page)) * 96;
+  const nextHitDistance = page.evaluate(
+    (total) =>
+      new Promise<number>((resolve) => {
+        const debug = window.__audleDebug!;
+        const initial = debug.hitCount();
+        const sample = () => {
+          if (debug.hitCount() === initial) {
+            requestAnimationFrame(sample);
+            return;
+          }
+          const hit = debug.lastHit()!.tick;
+          const tick = debug.transportTick();
+          const distance = (((tick - hit) % total) + total) % total;
+          resolve(Math.min(distance, total - distance));
+        };
+        requestAnimationFrame(sample);
+      }),
+    totalTicks,
+  );
   await sound.click();
-  await expect.poll(() => hitCount(page)).toBeGreaterThan(0);
-  // A hit is announced on the animation frame at its audio time, so the transport tick read
-  // right after it should sit within one sixteenth of the hit's own tick (modulo the loop).
-  await expect
-    .poll(async () => {
-      const [hit, tick] = await Promise.all([lastHitTick(page), transportTick(page)]);
-      const bars = 4 * 384;
-      const delta = (((tick - hit) % bars) + bars) % bars;
-      return Math.min(delta, bars - delta);
-    })
-    .toBeLessThanOrEqual(48);
+  // Read transport on the first frame that observes a hit, not at an arbitrary later poll.
+  expect(await nextHitDistance).toBeLessThanOrEqual(48);
 });
 
 test('muted tracks stay silent to hit listeners', async ({ page }) => {
@@ -35,6 +51,31 @@ test('muted tracks stay silent to hit listeners', async ({ page }) => {
   expect(await hitCount(page)).toBe(settled);
 });
 
+test('pad timelines move with transport and reset on stop', async ({ page }) => {
+  await page.goto('/');
+  const sound = page.locator('.sound-object').nth(8);
+  const progress = () =>
+    page
+      .locator('.stage-frame')
+      .evaluate((stage) =>
+        Number.parseFloat((stage as HTMLElement).style.getPropertyValue('--play-progress')),
+      );
+  await expect(sound.locator('.hit-mark')).toHaveCount(0);
+  await sound.click();
+  await expect(sound.locator('.hit-mark')).toHaveCount(await steadyKickHits(page));
+  await expect.poll(progress).toBeGreaterThan(0);
+  const first = await progress();
+  await expect.poll(progress).not.toBe(first);
+  await page.getByRole('button', { name: 'Stop loop' }).click();
+  await expect.poll(progress).toBe(0);
+  await expect(sound.locator('.hit-mark')).toHaveCount(await steadyKickHits(page));
+  const other = page.locator('.sound-object').first();
+  const height = (pad: typeof sound) =>
+    pad.locator('.hit-timeline').evaluate((element) => element.getBoundingClientRect().height);
+  expect(await height(sound)).toBeGreaterThan(await height(other));
+  await other.click();
+  expect(await height(other)).toBeGreaterThan(await height(sound));
+});
 test('under reduced motion, selected, pressed, queued, and focused pads keep static cues', async ({
   page,
 }, testInfo) => {
@@ -44,7 +85,22 @@ test('under reduced motion, selected, pressed, queued, and focused pads keep sta
   await expect(sound).toBeEnabled();
   await sound.click();
   await expect.poll(() => hitCount(page)).toBeGreaterThan(0);
+  const idleWaveform = await sound
+    .locator('.pad-waveform canvas')
+    .evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL());
+  await page.waitForTimeout(150);
   await expect(sound).toHaveAttribute('aria-pressed', 'true');
+  await expect(sound.locator('.hit-mark')).toHaveCount(await steadyKickHits(page));
+  expect(
+    await page
+      .locator('.stage-frame')
+      .evaluate((stage) => (stage as HTMLElement).style.getPropertyValue('--play-progress')),
+  ).toBe('0');
+  expect(
+    await sound
+      .locator('.pad-waveform canvas')
+      .evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL()),
+  ).toBe(idleWaveform);
 
   await sound.hover();
   await page.mouse.down();
@@ -242,6 +298,8 @@ test('dial gestures persist independently and a pointer drag is undone as one co
   await expect(level).toHaveAttribute('aria-valuenow', '0');
   await firstSound.click();
   await expect(level).toHaveAttribute('aria-valuenow', '0.5');
+  // Stop queued pad changes so they cannot land on a bar boundary after the dial drag.
+  await page.getByRole('button', { name: 'Stop loop' }).click();
 
   const box = (await level.boundingBox())!;
   await page.mouse.move(box.x + 2, box.y + box.height / 2);
@@ -257,6 +315,27 @@ test('dial gestures persist independently and a pointer drag is undone as one co
   await undo.click();
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   await expect(level).toHaveAttribute('aria-valuenow', '0.5');
+  const space = page.getByRole('slider', { name: 'Space' });
+  const echo = page.getByRole('slider', { name: 'Echo' });
+  const fuzz = page.getByRole('slider', { name: 'Fuzz' });
+  for (const [slider, presses] of [
+    [space, 1],
+    [echo, 2],
+    [fuzz, 3],
+  ] as const) {
+    await slider.focus();
+    for (let index = 0; index < presses; index += 1) await slider.press('ArrowRight');
+  }
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const key = Object.keys(localStorage).find((item) => item.startsWith('audle:draft:v1:'));
+        if (!key) return undefined;
+        const { space, echo, fuzz } = JSON.parse(localStorage.getItem(key)!).tracks[8].controls;
+        return [space, echo, fuzz];
+      }),
+    )
+    .toEqual([0.05, 0.1, 0.15]);
 });
 
 test('the Arrange playhead sweeps between transport snapshots', async ({ page }) => {

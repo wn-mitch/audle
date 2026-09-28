@@ -30,6 +30,7 @@ describe('createBeatMotion', () => {
     const { beat, calls, attributes, element } = harness(false);
     beat.flashHit(element);
     beat.pulseBeat([element]);
+    beat.accentHitMark(element);
     beat.meterKick(element, { floor: 0.3 });
     expect(calls).toHaveLength(0);
     expect(attributes.has('data-hit')).toBe(false);
@@ -66,5 +67,13 @@ describe('createBeatMotion', () => {
     const { beat, calls, element } = harness(true);
     beat.meterKick(element, { floor: 0.3 });
     expect(calls[0]?.params['--level']).toEqual([1, 0.3]);
+  });
+
+  it('accents an audible timeline hit without shifting its position', () => {
+    const { beat, calls, element } = harness(true);
+    beat.accentHitMark(element);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.params.scale).toEqual([1, 1.7, 1]);
+    expect(calls[0]?.params.composition).toBe('replace');
   });
 });

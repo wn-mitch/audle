@@ -2,6 +2,7 @@ import { strToU8, zlibSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { challengeForDate } from './challenge';
 import type { CompositionV1, Track } from './model';
+import { validateComposition } from './schema';
 import {
   compositionToWire,
   decodeShare,
@@ -22,6 +23,9 @@ const baseComposition = (): CompositionV1 => {
       pan: index % 2 === 0 ? -0.05 : 0.05,
       tuneSemitones: 0,
       cutoffHz: 18000,
+      space: 0,
+      echo: 0,
+      fuzz: 0,
       muted: false,
       solo: false,
     },
@@ -63,6 +67,9 @@ describe('share codec', () => {
           pan: 0,
           tuneSemitones: index - 4,
           cutoffHz: 18000,
+          space: 0,
+          echo: 0,
+          fuzz: 0,
           muted: false,
           solo: false,
         },
@@ -87,6 +94,49 @@ describe('share codec', () => {
     expect(await fingerprintForComposition(decoded.value)).toBe(
       await fingerprintForComposition(composition),
     );
+  });
+
+  it('round-trips effects in the current wire while old sixteen-source links stay dry', () => {
+    const composition = baseComposition();
+    composition.tracks[0]!.controls = {
+      ...composition.tracks[0]!.controls,
+      space: 0.25,
+      echo: 0.5,
+      fuzz: 0.75,
+    };
+
+    const wire = compositionToWire(composition);
+    expect(wire[0]).toBe(5);
+    const current = decodeShare(encodeShare(composition));
+    expect(current.ok && current.value.tracks[0]?.controls).toMatchObject({
+      space: 0.25,
+      echo: 0.5,
+      fuzz: 0.75,
+    });
+
+    const savedDraft = structuredClone(baseComposition());
+    for (const track of savedDraft.tracks) {
+      delete (track.controls as Partial<Track['controls']>).space;
+      delete (track.controls as Partial<Track['controls']>).echo;
+      delete (track.controls as Partial<Track['controls']>).fuzz;
+    }
+    expect(validateComposition(savedDraft)?.tracks[0]?.controls).toMatchObject({
+      space: 0,
+      echo: 0,
+      fuzz: 0,
+    });
+
+    const legacyWire = [3, wire[1], wire[2], wire[3].map((track) => track.slice(0, 9))];
+    const legacy = decodeShare(encodedWire(legacyWire));
+    expect(legacy.ok && legacy.value.tracks[0]?.controls).toMatchObject({
+      space: 0,
+      echo: 0,
+      fuzz: 0,
+    });
+    const legacyPerformance = decodeShared(encodedWire([4, legacyWire, 384, [[0, 0, 0, 1]]]));
+    expect(
+      legacyPerformance.ok && legacyPerformance.value.performance?.composition.tracks[0]?.controls,
+    ).toMatchObject({ space: 0, echo: 0, fuzz: 0 });
   });
 
   it('refuses links from the eight-source format and replays takes otherwise', () => {

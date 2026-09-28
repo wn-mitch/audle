@@ -1,25 +1,45 @@
 <script lang="ts">
   import { sampleById } from '../data/samples';
+  import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from '../domain/model';
   import type { Track } from '../domain/model';
   import { enter, popOn, press } from '../motion';
   import type { EditorState } from '../state/editor.svelte';
+  import PadWaveform from './PadWaveform.svelte';
 
   let {
     track,
+    editor,
     index,
+    bars,
     status,
     selected,
     disabled,
     onToggle,
   }: {
     track: Track;
+    editor: EditorState;
     index: number;
+    bars: number;
     status: ReturnType<EditorState['liveStatus']>;
     selected: boolean;
     disabled: boolean;
     onToggle: (trackId: string) => void;
   } = $props();
   const sample = $derived(sampleById(track.sampleId));
+  const totalTicks = $derived(bars * TICKS_PER_BAR);
+  const barLines = $derived(
+    Array.from({ length: bars - 1 }, (_, index) => ((index + 1) / bars) * 100),
+  );
+  const hitTicks = $derived(
+    track.clips.flatMap((clip) =>
+      clip.kind === 'loop'
+        ? [clip.startTick]
+        : Array.from(
+            { length: clip.ratchet },
+            (_, strike) => clip.startTick + (strike * TICKS_PER_SIXTEENTH) / clip.ratchet,
+          ),
+    ),
+  );
 </script>
 
 <button
@@ -41,6 +61,7 @@
 >
   <span class="object-number">{(index + 1).toString().padStart(2, '0')}</span>
   <span class="glyph" aria-hidden="true">
+    {#if status === 'on'}<PadWaveform {editor} trackId={track.id} />{/if}
     {#if index < 2}<span class="shape rings"><i></i><i></i><i></i></span>
     {:else if index < 4}<span class="shape coils"><i></i><i></i><i></i></span>
     {:else if index < 6}<span class="shape prism"><i></i><i></i></span>
@@ -56,6 +77,24 @@
       >{/if}</span
   >
   <span class="object-meter" aria-hidden="true"></span>
+  <span class="hit-timeline" aria-hidden="true" data-hit-count={hitTicks.length}>
+    {#each barLines as position (position)}
+      <i class="barline" style:left={`${position}%`}></i>
+    {/each}
+    {#each track.clips as clip (clip.id)}
+      {#if clip.kind === 'loop'}
+        <i
+          class="loop-length"
+          style:left={`${(clip.startTick / totalTicks) * 100}%`}
+          style:width={`${(clip.lengthTicks / totalTicks) * 100}%`}
+        ></i>
+      {/if}
+    {/each}
+    {#each hitTicks as tick, index (index)}
+      <i class="hit-mark" data-tick={tick} style:left={`${(tick / totalTicks) * 100}%`}></i>
+    {/each}
+    <i class="timeline-progress"></i>
+  </span>
 </button>
 
 <style>
@@ -137,6 +176,7 @@
     color: var(--audle-text);
   }
   .glyph {
+    position: relative;
     display: grid;
     place-items: center;
     min-block-size: 40px;
@@ -150,6 +190,10 @@
     inline-size: 43px;
     block-size: 43px;
     transition: rotate 180ms var(--ease-out-quint);
+  }
+  .sound-object.active .shape {
+    inline-size: 34px;
+    block-size: 34px;
   }
   .shape i {
     position: absolute;
@@ -305,6 +349,54 @@
     color: var(--audle-text);
     font-size: 0.54rem;
   }
+  .hit-timeline {
+    position: relative;
+    display: block;
+    flex: none;
+    inline-size: 100%;
+    block-size: 8px;
+    margin-block-start: 4px;
+    overflow: hidden;
+    background: var(--audle-well-raised);
+  }
+  .sound-object.selected .hit-timeline {
+    block-size: 18px;
+    box-shadow: inset 0 0 0 1px oklch(var(--source) / 0.55);
+  }
+  .hit-timeline i {
+    position: absolute;
+    display: block;
+    pointer-events: none;
+  }
+  .barline {
+    inset-block: 0;
+    inline-size: 1px;
+    z-index: 1;
+    background: var(--audle-grid-major);
+  }
+  .loop-length {
+    inset-block: 3px;
+    background: oklch(var(--source) / 0.4);
+  }
+  .hit-mark {
+    top: 0;
+    inline-size: 2px;
+    block-size: 100%;
+    background: oklch(var(--source));
+  }
+  .sound-object.selected .hit-mark {
+    inline-size: 3px;
+  }
+  .timeline-progress {
+    inset: 0;
+    background: color-mix(in srgb, var(--audle-accent) 14%, transparent);
+    border-inline-end: 2px solid var(--audle-accent);
+    transform: scaleX(var(--play-progress, 0));
+    transform-origin: left;
+  }
+  .sound-object:not(.active) .hit-timeline {
+    opacity: 0.62;
+  }
   .object-meter {
     position: absolute;
     inset: auto auto 0 0;
@@ -319,6 +411,29 @@
   }
   .sound-object:not(.active) .object-meter {
     transform: scaleX(0);
+  }
+  @media (max-width: 540px) {
+    .sound-object {
+      padding: 5px 6px;
+    }
+    .glyph {
+      min-block-size: 34px;
+    }
+    .shape {
+      inline-size: 38px;
+      block-size: 38px;
+    }
+    .sound-object.active .shape {
+      inline-size: 29px;
+      block-size: 29px;
+    }
+    .hit-timeline {
+      block-size: 7px;
+      margin-block-start: 2px;
+    }
+    .sound-object.selected .hit-timeline {
+      block-size: 14px;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .sound-object,

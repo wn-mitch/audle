@@ -8,7 +8,7 @@
     TICKS_PER_BAR,
     TICKS_PER_SIXTEENTH,
   } from '../domain/model';
-  import { flashHit, meterKick, motion, popOn, press, pulseBeat } from '../motion';
+  import { accentHitMark, flashHit, meterKick, motion, popOn, press, pulseBeat } from '../motion';
   import type { EditorState } from '../state/editor.svelte';
   import Icon from './Icon.svelte';
   import Knob from './Knob.svelte';
@@ -26,7 +26,7 @@
     onTakeSaved: () => void;
   } = $props();
 
-  let stage: HTMLElement;
+  let stage = $state<HTMLElement>();
   let lastBeat = -1;
   const tracks = $derived(editor.composition.tracks.slice(0, SOURCES_PER_DAY));
   const selected = $derived(editor.selectedTrack);
@@ -117,6 +117,20 @@
     const icon = stage.querySelector<HTMLElement>('.transport .icon');
     if (icon) pulseBeat([icon], { accent: beat % 4 === 0 });
   });
+  let progressFrame = 0;
+  const updateProgress = () => {
+    const total = editor.composition.bars * TICKS_PER_BAR;
+    if (stage && total)
+      stage.style.setProperty('--play-progress', String((editor.currentTick() % total) / total));
+    progressFrame = requestAnimationFrame(updateProgress);
+  };
+
+  $effect(() => {
+    if (!stage) return;
+    if (editor.playing && motion.allowed) progressFrame = requestAnimationFrame(updateProgress);
+    else stage.style.setProperty('--play-progress', '0');
+    return () => cancelAnimationFrame(progressFrame);
+  });
 
   onMount(() =>
     editor.subscribeHits((hit) => {
@@ -128,6 +142,8 @@
       flashHit(object, { strength: hit.kind === 'loop' ? 0.7 : 1 });
       const meter = object.querySelector<HTMLElement>('.object-meter');
       if (meter) meterKick(meter, { floor: 0.3 });
+      const mark = object.querySelector<HTMLElement>(`.hit-mark[data-tick="${hit.tick}"]`);
+      if (mark) accentHitMark(mark);
     }),
   );
 </script>
@@ -152,8 +168,10 @@
       <div class="objects" aria-label="Sixteen sounds">
         {#each tracks as track, index (track.id)}
           <SoundPad
+            {editor}
             {track}
             {index}
+            bars={editor.composition.bars}
             status={editor.liveStatus(track.id)}
             selected={editor.selectedTrackId === track.id}
             disabled={editor.loading || !!editor.loadingError || editor.playingPerformance}
@@ -168,43 +186,46 @@
       >
         <div class="identity-row">
           <h2>{selected ? selected.label : 'Pick a sound'}</h2>
-          <button
-            type="button"
-            class="hear-control"
-            disabled={!selected ||
-              editor.loading ||
-              !!editor.loadingError ||
-              editor.playing ||
-              editor.playingPerformance ||
-              editor.captureStatus !== 'idle'}
-            use:press
-            onclick={() => void editor.auditionSelected()}
-            ><Icon name="play" size={14} /> Hear it</button
-          >
+          <div class="identity-actions">
+            <button
+              type="button"
+              class="hear-control"
+              disabled={!selected ||
+                editor.loading ||
+                !!editor.loadingError ||
+                editor.playing ||
+                editor.playingPerformance ||
+                editor.captureStatus !== 'idle'}
+              use:press
+              onclick={() => void editor.auditionSelected()}
+              ><Icon name="play" size={14} /> Hear it</button
+            >
+            <button
+              type="button"
+              class="solo-control"
+              aria-pressed={!!selected &&
+                (editor.queuedSolo[selected.id] ?? selected.controls.solo)}
+              disabled={!selected?.clips.length ||
+                editor.loading ||
+                !!editor.loadingError ||
+                editor.captureStatus === 'count-in' ||
+                editor.playingPerformance}
+              use:press
+              onclick={() => selected && editor.toggleLiveSolo(selected.id)}
+              >Solo {selected && (editor.queuedSolo[selected.id] ?? selected.controls.solo)
+                ? 'on'
+                : 'off'}{selected && editor.queuedSolo[selected.id] !== undefined
+                ? ' · next bar'
+                : ''}</button
+            >
+          </div>
         </div>
         <div class="source-row">
           <p>
             {sample
-              ? `${sample.role.toUpperCase()} · ${sample.kind === 'one-shot' ? 'ONE-SHOT' : 'LOOP'} · ${editor.loading ? 'Loading sound' : duration === undefined ? 'Duration unavailable' : `${duration < 1 ? duration.toFixed(2) : duration.toFixed(1)} sec`}`
+              ? `${sample.role.toUpperCase()} · ${sample.kind === 'one-shot' ? 'ONE-SHOT' : 'LOOP'} · ${editor.loading ? 'Loading sound' : duration === undefined ? 'Duration unavailable' : `${duration < 1 ? duration.toFixed(2) : duration.toFixed(1)} sec`}${sample.kind === 'loop' ? ` · ${sample.bars ?? 2}-BAR SOURCE` : ''}`
               : 'Select a sound'}<span>&nbsp;· {editor.composition.bars}-BAR ARRANGEMENT</span>
           </p>
-          <button
-            type="button"
-            class="solo-control"
-            aria-pressed={!!selected && (editor.queuedSolo[selected.id] ?? selected.controls.solo)}
-            disabled={!selected?.clips.length ||
-              editor.loading ||
-              !!editor.loadingError ||
-              editor.captureStatus === 'count-in' ||
-              editor.playingPerformance}
-            use:press
-            onclick={() => selected && editor.toggleLiveSolo(selected.id)}
-            >Solo {selected && (editor.queuedSolo[selected.id] ?? selected.controls.solo)
-              ? 'on'
-              : 'off'}{selected && editor.queuedSolo[selected.id] !== undefined
-              ? ' · next bar'
-              : ''}</button
-          >
         </div>
         <div class="groove-heading">
           <div>
@@ -293,6 +314,51 @@
               editor.updateSelectedTrackControls({ ...selected.controls, tuneSemitones })}
             onEnd={() => editor.endControlGesture()}
           />
+          <Knob
+            dial
+            label="Space"
+            detail="Hall reverb"
+            value={selected?.controls.space ?? 0}
+            min={0}
+            max={1}
+            step={0.05}
+            valueText={`${Math.round((selected?.controls.space ?? 0) * 100)}%`}
+            disabled={tuningDisabled}
+            onStart={() => editor.beginControlGesture()}
+            onChange={(space) =>
+              selected && editor.updateSelectedTrackControls({ ...selected.controls, space })}
+            onEnd={() => editor.endControlGesture()}
+          />
+          <Knob
+            dial
+            label="Echo"
+            detail="Repeats"
+            value={selected?.controls.echo ?? 0}
+            min={0}
+            max={1}
+            step={0.05}
+            valueText={`${Math.round((selected?.controls.echo ?? 0) * 100)}%`}
+            disabled={tuningDisabled}
+            onStart={() => editor.beginControlGesture()}
+            onChange={(echo) =>
+              selected && editor.updateSelectedTrackControls({ ...selected.controls, echo })}
+            onEnd={() => editor.endControlGesture()}
+          />
+          <Knob
+            dial
+            label="Fuzz"
+            detail="Distortion"
+            value={selected?.controls.fuzz ?? 0}
+            min={0}
+            max={1}
+            step={0.05}
+            valueText={`${Math.round((selected?.controls.fuzz ?? 0) * 100)}%`}
+            disabled={tuningDisabled}
+            onStart={() => editor.beginControlGesture()}
+            onChange={(fuzz) =>
+              selected && editor.updateSelectedTrackControls({ ...selected.controls, fuzz })}
+            onEnd={() => editor.endControlGesture()}
+          />
         </div>
       </section>
     </div>
@@ -353,7 +419,7 @@
   .play-world {
     inline-size: min(100% - 20px, 1060px);
     margin: 0 auto;
-    padding: 8px 0 8px;
+    padding: 4px 0;
   }
   .stage-frame {
     overflow: hidden;
@@ -391,9 +457,9 @@
   }
   .stage-body {
     display: grid;
-    grid-template-columns: minmax(0, 455px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 440px) minmax(0, 1fr);
     gap: 14px;
-    padding: 10px;
+    padding: 6px 10px;
   }
   .objects {
     display: grid;
@@ -415,6 +481,11 @@
     justify-content: space-between;
     gap: 10px;
     min-inline-size: 0;
+  }
+  .identity-actions {
+    display: flex;
+    flex: none;
+    gap: 6px;
   }
   .identity-row h2 {
     min-inline-size: 0;
@@ -456,7 +527,7 @@
     color: oklch(var(--source));
   }
   .source-row {
-    min-block-size: 49px;
+    min-block-size: 42px;
   }
   .source-row p {
     min-inline-size: 0;
@@ -554,9 +625,9 @@
   .dials {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
+    gap: 4px 6px;
     margin-block-start: auto;
-    padding-block-start: 10px;
+    padding-block-start: 8px;
     border-top: 1px solid var(--audle-grid-major);
   }
   .play-footer {
@@ -573,6 +644,12 @@
   .next-actions {
     display: flex;
     gap: 7px;
+  }
+  .footer-main {
+    justify-self: start;
+  }
+  .next-actions {
+    justify-self: end;
   }
   .play-footer button {
     display: inline-flex;
@@ -652,10 +729,17 @@
     }
     .play-footer {
       flex-wrap: wrap;
+      display: flex;
     }
     .footer-main,
     .next-actions {
       flex: 1 1 100%;
+    }
+    .footer-main {
+      order: 0;
+    }
+    .next-actions {
+      order: 2;
     }
     .play-footer button {
       flex: 1;

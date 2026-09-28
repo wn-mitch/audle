@@ -51,7 +51,9 @@ const persistedClipSignature = (page: Page, trackId: string) =>
 
 const decodedDurationSeconds = async (page: Page): Promise<number> => {
   const text = await selectedSourceFacts(page).textContent();
-  const match = text?.match(/· (\d+(?:\.\d+)?) sec\s+· \d+-BAR ARRANGEMENT$/u);
+  const match = text?.match(
+    /· (\d+(?:\.\d+)?) sec(?: · \d+-BAR SOURCE)?\s+· \d+-BAR ARRANGEMENT$/u,
+  );
   expect(
     match,
     `Selected sound does not show decoded seconds: ${text ?? 'missing text'}`,
@@ -124,6 +126,17 @@ test('persists a distinct one-shot clip signature for every Play feel', async ({
     await expect
       .poll(() => persistedClipSignature(page, trackId))
       .toEqual(hitSignature(startTicks.filter((tick) => tick < arrangementTicks)));
+    expect(
+      await oneShot
+        .locator('.hit-mark')
+        .evaluateAll(
+          (marks, total) =>
+            marks.map((mark) =>
+              Math.round((Number.parseFloat((mark as HTMLElement).style.left) * total) / 100),
+            ),
+          arrangementTicks,
+        ),
+    ).toEqual(startTicks.filter((tick) => tick < arrangementTicks));
   }
 });
 
@@ -142,6 +155,7 @@ test('shows decoded source seconds for selected one-shots and loops regardless o
   await page.locator('.sound-object').first().click();
   await page.getByRole('button', { name: 'halftime', exact: true }).click();
   await expect(selectedSourceFacts(page)).toContainText(/LOOP · \d+\.\d sec/u);
+  await expect(selectedSourceFacts(page)).toContainText(/2-BAR SOURCE\s+· \d+-BAR ARRANGEMENT/u);
   const loopSeconds = await decodedDurationSeconds(page);
 
   expect(oneShotSeconds).toBeLessThan(1);
@@ -169,6 +183,33 @@ test('Hear it auditions the selected sound without adding clips', async ({ page 
   await expect.poll(() => persistedClipSignature(page, trackId)).toEqual([]);
 });
 
+test('Play draws a waveform only on the owning pad while it sounds', async ({ page }) => {
+  await page.goto('/');
+  const first = page.locator('.sound-object').first();
+  const other = page.locator('.sound-object').nth(1);
+  await expect(first.locator('.pad-waveform')).toHaveCount(0);
+  await first.click();
+  const canvas = first.locator('.pad-waveform canvas');
+  await expect(canvas).toBeVisible();
+  await expect(other.locator('.pad-waveform')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Stop loop' }).click();
+  const still = await canvas.evaluate((node: HTMLCanvasElement) => node.toDataURL());
+  await page.getByRole('button', { name: 'Play loop' }).click();
+  await expect
+    .poll(
+      async () =>
+        (await outputRms(page)) > 0.001 &&
+        (await canvas.evaluate((node: HTMLCanvasElement) => node.toDataURL())) !== still,
+      { timeout: 10000 },
+    )
+    .toBe(true);
+  await page.getByRole('button', { name: 'Stop loop' }).click();
+  await expect
+    .poll(() => canvas.evaluate((node: HTMLCanvasElement) => node.toDataURL()))
+    .toBe(still);
+});
+
 test('the share sheet exports a non-silent WAV from the live loop', async ({ page }) => {
   await page.goto('/');
   await page.locator('.sound-object').first().click();
@@ -182,6 +223,36 @@ test('the share sheet exports a non-silent WAV from the live loop', async ({ pag
   expect(wav.toString('ascii', 8, 12)).toBe('WAVE');
   expect(wav.length).toBeGreaterThan(44);
   expect(wav.subarray(44).some((byte) => byte !== 0)).toBe(true);
+});
+
+test('Space, Echo, and Fuzz each change the exported sound', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/');
+  await page.locator('.sound-object').nth(8).click();
+  await page.getByRole('button', { name: 'Stop loop' }).click();
+
+  const exportLoop = async () => {
+    await page.getByRole('button', { name: 'Share', exact: true }).click();
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Download loop WAV' }).click(),
+    ]);
+    const audio = await readFile(await download.path());
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    return audio;
+  };
+
+  const dry = await exportLoop();
+  for (const name of ['Space', 'Echo', 'Fuzz']) {
+    const dial = page.getByRole('slider', { name });
+    await dial.focus();
+    await dial.press('End');
+    await expect(dial).toHaveAttribute('aria-valuenow', '1');
+    const processed = await exportLoop();
+    expect(processed.subarray(44).equals(dry.subarray(44)), `${name} was inaudible`).toBe(false);
+    await dial.press('Home');
+    await expect(dial).toHaveAttribute('aria-valuenow', '0');
+  }
 });
 
 test('Offset persists sparse one-shot hits one sixteenth at a time', async ({ page }) => {
@@ -203,6 +274,17 @@ test('Offset persists sparse one-shot hits one sixteenth at a time', async ({ pa
   await expect
     .poll(() => persistedClipSignature(page, trackId))
     .toEqual(hitSignature([24, 408, 792, 1176].filter((tick) => tick < arrangementTicks)));
+  expect(
+    await oneShot
+      .locator('.hit-mark')
+      .evaluateAll(
+        (marks, total) =>
+          marks.map((mark) =>
+            Math.round((Number.parseFloat((mark as HTMLElement).style.left) * total) / 100),
+          ),
+        arrangementTicks,
+      ),
+  ).toEqual([24, 408, 792, 1176].filter((tick) => tick < arrangementTicks));
 
   await page.getByRole('button', { name: 'Offset pattern one step earlier' }).click();
   await expect

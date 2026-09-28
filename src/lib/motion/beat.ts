@@ -24,6 +24,8 @@ export interface BeatMotion {
   /** Kicks `--level` to `peak` and lets it decay to `floor`, for a meter bar scaled by that
    * property. */
   meterKick(element: MotionTarget, options: { peak?: number; floor: number }): void;
+  /** Accents only the timing mark that corresponds to an audible event. */
+  accentHitMark(element: MotionTarget): void;
 }
 
 export const createBeatMotion = (runner: MotionRunner): BeatMotion => {
@@ -72,10 +74,19 @@ export const createBeatMotion = (runner: MotionRunner): BeatMotion => {
         composition: 'replace',
       });
     },
+    accentHitMark(element) {
+      if (!ready(element)) return;
+      runner.animate(element as HTMLElement, {
+        scale: [1, 1.7, 1],
+        duration: DURATION.flash,
+        ease: EASE.flash,
+        composition: 'replace',
+      });
+    },
   };
 };
 
-export const { flashHit, pulseBeat, meterKick } = createBeatMotion({
+export const { flashHit, pulseBeat, meterKick, accentHitMark } = createBeatMotion({
   animate,
   allowed: isMotionAllowed,
   mode: () => motion.mode,

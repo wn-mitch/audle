@@ -153,6 +153,9 @@ export class EditorState {
   sourceDurationSeconds(sampleId: string): number | undefined {
     return this.engine.sourceDurationSeconds(sampleId);
   }
+  trackWaveform(trackId: string): Float32Array | undefined {
+    return this.engine.trackWaveform(trackId);
+  }
 
   get canUndo(): boolean {
     return this.undoStack.length > 0;

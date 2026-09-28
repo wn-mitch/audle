@@ -78,6 +78,12 @@ export interface TrackControls {
   pan: number;
   tuneSemitones: number;
   cutoffHz: number;
+  /** Hall reverb wet mix, from dry (0) to fully wet (1). */
+  space: number;
+  /** Feedback delay wet mix, from dry (0) to fully wet (1). */
+  echo: number;
+  /** Distortion drive, from dry (0) to full fuzz (1). */
+  fuzz: number;
   muted: boolean;
   solo: boolean;
 }
@@ -123,6 +129,9 @@ export const DEFAULT_TRACK_CONTROLS: TrackControls = {
   pan: 0,
   tuneSemitones: 0,
   cutoffHz: 18000,
+  space: 0,
+  echo: 0,
+  fuzz: 0,
   muted: false,
   solo: false,
 };

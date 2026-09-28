@@ -58,8 +58,13 @@ test('the compact Play deck stays fully usable at laptop height through a saved 
   await expect(page.getByRole('group', { name: 'Pattern feel' }).getByRole('button')).toHaveCount(
     6,
   );
-  await expect(page.locator('.dials input')).toHaveCount(3);
+  await expect(page.locator('.dials input')).toHaveCount(6);
   await expect(page.locator('.play-footer')).toBeVisible();
+  const [hearBox, soloBox] = await Promise.all([
+    page.getByRole('button', { name: 'Hear it' }).boundingBox(),
+    page.getByRole('button', { name: /^Solo/u }).boundingBox(),
+  ]);
+  expect(Math.abs(hearBox!.y - soloBox!.y)).toBeLessThan(2);
   const [grooveBox, offsetBox] = await Promise.all([
     page.getByRole('heading', { name: 'Groove' }).boundingBox(),
     page.getByRole('group', { name: 'Pattern offset' }).boundingBox(),

@@ -36,6 +36,8 @@ export interface AudioEngine {
   armRecord(enabled: boolean): void;
   audition(sampleId: string): void;
   sourceDurationSeconds(sampleId: string): number | undefined;
+  /** Post-gain samples for one isolated track. Undefined means the track has no signal path. */
+  trackWaveform(trackId: string): Float32Array | undefined;
   absoluteTick(): number;
   scheduleTrackControls(
     trackId: string,
@@ -62,13 +64,21 @@ export class AssetLoadError extends Error {
 type TrackNodes = {
   filter: Tone.Filter;
   panner: Tone.Panner;
+  fuzz?: Tone.Distortion;
+  space?: Tone.Reverb;
+  echo?: Tone.FeedbackDelay;
   gain: Tone.Gain;
+  analyser: Tone.Analyser;
 };
 
 const disposeTrackNodes = (nodes: TrackNodes): void => {
   nodes.filter.dispose();
   nodes.panner.dispose();
+  nodes.fuzz?.dispose();
+  nodes.space?.dispose();
+  nodes.echo?.dispose();
   nodes.gain.dispose();
+  nodes.analyser.dispose();
 };
 
 type ScheduledEvent = {
@@ -224,6 +234,12 @@ export class ToneAudioEngine implements AudioEngine {
 
   sourceDurationSeconds(sampleId: string): number | undefined {
     return this.buffers.get(sampleId)?.duration;
+  }
+  trackWaveform(trackId: string): Float32Array | undefined {
+    const analyser = this.nodes.get(trackId)?.analyser;
+    if (!analyser) return undefined;
+    const value = analyser.getValue();
+    return value instanceof Float32Array ? value : value[0]!;
   }
 
   setTrackControls(trackId: string, controls: TrackControls): void {
@@ -408,7 +424,8 @@ export class ToneAudioEngine implements AudioEngine {
   }
 
   private emitTransport(tick: number = this.transport.ticks): void {
-    const snapshot = { playing: this.transport.state === 'started', tick };
+    const playing = this.transport.state === 'started';
+    const snapshot = { playing, tick: playing ? tick : this.transport.ticks };
     for (const listener of this.listeners) listener(snapshot);
   }
 
@@ -445,8 +462,9 @@ export class ToneAudioEngine implements AudioEngine {
       const filter = new Tone.Filter({ type: 'lowpass', frequency: track.controls.cutoffHz });
       const panner = new Tone.Panner(track.controls.pan);
       const gain = new Tone.Gain();
-      filter.chain(panner, gain, this.limiter);
-      this.nodes.set(track.id, { filter, panner, gain });
+      const analyser = new Tone.Analyser('waveform', 256);
+      filter.chain(panner, gain, analyser, this.limiter);
+      this.nodes.set(track.id, { filter, panner, gain, analyser });
     }
     this.applyTrackControlValues();
   }
@@ -457,8 +475,21 @@ export class ToneAudioEngine implements AudioEngine {
     for (const track of this.composition.tracks) {
       const nodes = this.nodes.get(track.id);
       if (!nodes) continue;
+      this.configureTrackEffects(nodes, track.controls);
       nodes.filter.frequency.value = track.controls.cutoffHz;
       nodes.panner.pan.value = track.controls.pan;
+      if (nodes.fuzz) {
+        nodes.fuzz.distortion = track.controls.fuzz;
+        if (time === undefined) nodes.fuzz.wet.value = track.controls.fuzz === 0 ? 0 : 1;
+        else nodes.fuzz.wet.setValueAtTime(track.controls.fuzz === 0 ? 0 : 1, time);
+      }
+      if (time === undefined) {
+        if (nodes.space) nodes.space.wet.value = track.controls.space;
+        if (nodes.echo) nodes.echo.wet.value = track.controls.echo;
+      } else {
+        nodes.space?.wet.setValueAtTime(track.controls.space, time);
+        nodes.echo?.wet.setValueAtTime(track.controls.echo, time);
+      }
       const gain =
         track.controls.muted || (soloed && !track.controls.solo)
           ? 0
@@ -466,6 +497,39 @@ export class ToneAudioEngine implements AudioEngine {
       if (time === undefined) nodes.gain.gain.value = gain;
       else nodes.gain.gain.setValueAtTime(gain, time);
     }
+  }
+
+  /** Effects stay absent until used; a dry default track avoids unnecessary processors and IRs. */
+  private configureTrackEffects(nodes: TrackNodes, controls: TrackControls): void {
+    let rewired = false;
+    if (controls.fuzz > 0 && !nodes.fuzz) {
+      nodes.fuzz = new Tone.Distortion({
+        distortion: controls.fuzz,
+        oversample: '2x',
+        wet: 1,
+      });
+      rewired = true;
+    }
+    if (controls.space > 0 && !nodes.space) {
+      nodes.space = new Tone.Reverb({ decay: 2.8, preDelay: 0.015 });
+      rewired = true;
+    }
+    if (controls.echo > 0 && !nodes.echo) {
+      nodes.echo = new Tone.FeedbackDelay({ delayTime: '8n', feedback: 0.35 });
+      rewired = true;
+    }
+    if (!rewired) return;
+
+    nodes.panner.disconnect();
+    nodes.fuzz?.disconnect();
+    nodes.space?.disconnect();
+    nodes.echo?.disconnect();
+    nodes.gain.disconnect();
+    nodes.analyser.disconnect();
+    const effects = [nodes.fuzz, nodes.space, nodes.echo].filter(
+      (node): node is Tone.Distortion | Tone.Reverb | Tone.FeedbackDelay => node !== undefined,
+    );
+    nodes.panner.chain(...effects, nodes.gain, nodes.analyser, this.limiter);
   }
 
   private rebuildPart(composition: CompositionV1): void {
