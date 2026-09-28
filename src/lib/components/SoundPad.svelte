@@ -27,9 +27,6 @@
   } = $props();
   const sample = $derived(sampleById(track.sampleId));
   const totalTicks = $derived(bars * TICKS_PER_BAR);
-  const barLines = $derived(
-    Array.from({ length: bars - 1 }, (_, index) => ((index + 1) / bars) * 100),
-  );
   const hitTicks = $derived(
     track.clips.flatMap((clip) =>
       clip.kind === 'loop'
@@ -44,7 +41,7 @@
 
 <button
   type="button"
-  class="sound-object"
+  class="sound-object relative flex min-h-12 min-w-0 cursor-pointer flex-col items-stretch justify-between overflow-hidden border border-audle-outline-subtle px-[10px] py-2 text-left text-audle-text max-[540px]:px-[6px] max-[540px]:py-[5px] disabled:cursor-not-allowed disabled:opacity-[0.66] motion-reduce:transition-none"
   class:active={status === 'on'}
   class:selected
   class:pending={status.startsWith('queued')}
@@ -59,8 +56,20 @@
   {disabled}
   onclick={() => onToggle(track.id)}
 >
-  <span class="object-number">{(index + 1).toString().padStart(2, '0')}</span>
-  <span class="glyph" aria-hidden="true">
+  <span class="flex min-w-0 items-center justify-between gap-0.5">
+    <span
+      class="object-number font-mono text-[0.62rem] leading-[1.1] font-bold tracking-[0.08em] text-audle-text"
+      >{(index + 1).toString().padStart(2, '0')}</span
+    >
+    <span
+      class="whitespace-nowrap text-[0.5rem] font-bold tracking-[0.02em] text-audle-text uppercase max-[400px]:text-[0.43rem]"
+      >{sample?.role}</span
+    >
+  </span>
+  <span
+    class="glyph relative grid min-h-10 origin-center place-items-center max-[540px]:min-h-[34px]"
+    aria-hidden="true"
+  >
     {#if status === 'on'}<PadWaveform {editor} trackId={track.id} />{/if}
     {#if index < 2}<span class="shape rings"><i></i><i></i><i></i></span>
     {:else if index < 4}<span class="shape coils"><i></i><i></i><i></i></span>
@@ -71,16 +80,16 @@
     {:else if index < 14}<span class="shape orbit"><i></i><i></i><i></i></span>
     {:else}<span class="shape lattice"><i></i><i></i><i></i><i></i></span>{/if}
   </span>
-  <span class="object-bottom"
-    ><strong>{sample?.label ?? track.label}</strong>{#if status.startsWith('queued')}<span
-        >NEXT BAR</span
-      >{/if}</span
+  <span class="object-bottom grid min-w-0 gap-[2px]"
+    ><strong class="truncate text-[0.72rem] leading-[1.2]">{sample?.label ?? track.label}</strong
+    >{#if status.startsWith('queued')}<span>NEXT BAR</span>{/if}</span
   >
   <span class="object-meter" aria-hidden="true"></span>
-  <span class="hit-timeline" aria-hidden="true" data-hit-count={hitTicks.length}>
-    {#each barLines as position (position)}
-      <i class="barline" style:left={`${position}%`}></i>
-    {/each}
+  <span
+    class="hit-timeline relative mt-1 block h-2 w-full flex-none overflow-hidden bg-audle-well-raised max-[540px]:mt-[2px] max-[540px]:h-[7px]"
+    aria-hidden="true"
+    data-hit-count={hitTicks.length}
+  >
     {#each track.clips as clip (clip.id)}
       {#if clip.kind === 'loop'}
         <i
@@ -99,30 +108,13 @@
 
 <style>
   .sound-object {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: space-between;
-    min-inline-size: 0;
-    min-block-size: 48px;
-    padding: 8px 10px;
-    overflow: hidden;
-    border: 1px solid var(--audle-outline-subtle);
     background: color-mix(in srgb, var(--audle-control) 72%, oklch(var(--source)) 28%);
     box-shadow: inset 0 0 0 3px oklch(var(--source) / var(--flash, 0));
-    color: var(--audle-text);
-    cursor: pointer;
-    text-align: left;
     transition:
       border-color 180ms,
       background 180ms,
       box-shadow 180ms,
       transform 180ms var(--ease-out-quint);
-  }
-  .sound-object:focus {
-    outline: 3px solid var(--audle-focus);
-    outline-offset: 3px;
   }
   .sound-object::before {
     content: '';
@@ -158,30 +150,8 @@
     border: 1px solid oklch(var(--source) / 0.7);
     pointer-events: none;
   }
-  .sound-object.pending {
-    border-style: dashed;
-  }
-  .sound-object:disabled {
-    cursor: not-allowed;
-    opacity: 0.66;
-  }
-  .object-number,
-  .object-bottom span {
-    font:
-      700 0.62rem/1.1 ui-monospace,
-      monospace;
-    letter-spacing: 0.08em;
-  }
-  .object-number {
-    color: var(--audle-text);
-  }
   .glyph {
-    position: relative;
-    display: grid;
-    place-items: center;
-    min-block-size: 40px;
     color: oklch(var(--source));
-    transform-origin: center;
   }
   .shape {
     position: relative;
@@ -333,31 +303,12 @@
     border-radius: 50%;
     background: currentColor;
   }
-  .object-bottom {
-    display: grid;
-    gap: 2px;
-    min-inline-size: 0;
-  }
-  .object-bottom strong {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    font-size: 0.72rem;
-    line-height: 1.2;
-  }
   .object-bottom span {
     color: var(--audle-text);
-    font-size: 0.54rem;
-  }
-  .hit-timeline {
-    position: relative;
-    display: block;
-    flex: none;
-    inline-size: 100%;
-    block-size: 8px;
-    margin-block-start: 4px;
-    overflow: hidden;
-    background: var(--audle-well-raised);
+    font:
+      700 0.54rem/1.1 ui-monospace,
+      monospace;
+    letter-spacing: 0.08em;
   }
   .sound-object.selected .hit-timeline {
     block-size: 18px;
@@ -367,12 +318,6 @@
     position: absolute;
     display: block;
     pointer-events: none;
-  }
-  .barline {
-    inset-block: 0;
-    inline-size: 1px;
-    z-index: 1;
-    background: var(--audle-grid-major);
   }
   .loop-length {
     inset-block: 3px;
@@ -394,9 +339,6 @@
     transform: scaleX(var(--play-progress, 0));
     transform-origin: left;
   }
-  .sound-object:not(.active) .hit-timeline {
-    opacity: 0.62;
-  }
   .object-meter {
     position: absolute;
     inset: auto auto 0 0;
@@ -413,12 +355,6 @@
     transform: scaleX(0);
   }
   @media (max-width: 540px) {
-    .sound-object {
-      padding: 5px 6px;
-    }
-    .glyph {
-      min-block-size: 34px;
-    }
     .shape {
       inline-size: 38px;
       block-size: 38px;
@@ -426,10 +362,6 @@
     .sound-object.active .shape {
       inline-size: 29px;
       block-size: 29px;
-    }
-    .hit-timeline {
-      block-size: 7px;
-      margin-block-start: 2px;
     }
     .sound-object.selected .hit-timeline {
       block-size: 14px;

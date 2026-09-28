@@ -1,4 +1,5 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import tailwindcss from '@tailwindcss/vite';
 import { Readable } from 'node:stream';
 import type { Plugin, ViteDevServer } from 'vite';
 import type { ShortLinkStore } from './src/lib/share/short-link.ts';
@@ -52,7 +53,7 @@ const devApi = (): Plugin => ({
 });
 
 export default defineConfig({
-  plugins: [svelte(), devApi()],
+  plugins: [tailwindcss(), svelte(), devApi()],
   test: {
     include: ['src/**/*.test.ts'],
     environment: 'node',

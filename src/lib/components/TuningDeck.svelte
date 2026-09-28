@@ -14,13 +14,18 @@
   };
 </script>
 
-<section class="tuning" aria-labelledby="tuning-title">
+<section
+  class="grid min-h-0 content-start gap-3.5 bg-audle-deck-raised p-4 shadow-[var(--audle-deck-edge)]"
+  aria-labelledby="tuning-title"
+>
   <div class="section-heading">
-    <p>Selected sound</p>
-    <h2 id="tuning-title">{track?.label ?? 'Pick a sound'}</h2>
+    <p class="mb-1 text-[0.7rem] font-bold tracking-[0.1em] text-audle-text-muted uppercase">
+      Selected sound
+    </p>
+    <h2 class="m-0 text-[1.1rem]" id="tuning-title">{track?.label ?? 'Pick a sound'}</h2>
   </div>
   {#if track}
-    <div class="knobs">
+    <div class="knobs grid grid-cols-2 gap-2">
       <Knob
         label="Gain"
         min={-24}
@@ -67,8 +72,9 @@
         onEnd={() => editor.endControlGesture()}
       />
     </div>
-    <div class="toggles">
+    <div class="toggles grid grid-cols-2 gap-2">
       <button
+        class="min-h-11 cursor-pointer border border-audle-outline bg-audle-control p-2 text-[0.75rem] font-bold shadow-[var(--audle-control-rest)] hover:bg-audle-control-hover"
         aria-pressed={track.controls.muted}
         class:active={track.controls.muted}
         type="button"
@@ -79,6 +85,7 @@
         }}>M Mute</button
       >
       <button
+        class="min-h-11 cursor-pointer border border-audle-outline bg-audle-control p-2 text-[0.75rem] font-bold shadow-[var(--audle-control-rest)] hover:bg-audle-control-hover"
         aria-pressed={track.controls.solo}
         class:active={track.controls.solo}
         type="button"
@@ -89,74 +96,25 @@
         }}>S Solo</button
       >
       {#if editor.composition.tracks.indexOf(track) >= SOURCES_PER_DAY}
-        <button class="delete" type="button" onclick={() => editor.deleteSelectedLayer()}
-          >Delete layer</button
+        <button
+          class="delete col-span-full min-h-11 cursor-pointer border border-audle-outline bg-audle-control p-2 text-[0.75rem] font-bold text-audle-record-light shadow-[var(--audle-control-rest)] hover:bg-audle-control-hover"
+          type="button"
+          onclick={() => editor.deleteSelectedLayer()}>Delete layer</button
         >
       {/if}
     </div>
   {:else}
-    <p class="empty">Tap a clip or lane to tune that sound.</p>
+    <p class="empty m-0 text-[0.875rem] text-audle-text-muted">
+      Tap a clip or lane to tune that sound.
+    </p>
   {/if}
 </section>
 
 <style>
-  .tuning {
-    display: grid;
-    align-content: start;
-    gap: 14px;
-    min-block-size: 0;
-    padding: 16px;
-    background: var(--audle-deck-raised);
-    box-shadow: var(--audle-deck-edge);
-  }
-  .section-heading p {
-    margin: 0 0 4px;
-    color: var(--audle-text-muted);
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-  h2 {
-    margin: 0;
-    font-size: 1.1rem;
-  }
-  .knobs {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-  .toggles {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-  button {
-    min-block-size: 44px;
-    padding: 8px;
-    border: 1px solid var(--audle-outline);
-    background: var(--audle-control);
-    box-shadow: var(--audle-control-rest);
-    cursor: pointer;
-    font-size: 0.75rem;
-    font-weight: 700;
-  }
-  button:hover {
-    background: var(--audle-control-hover);
-  }
   button.active {
     background: var(--audle-control-pressed);
     box-shadow:
       var(--audle-control-contact),
       inset 0 0 0 1px var(--audle-playback-light);
-  }
-  button.delete {
-    grid-column: 1 / -1;
-    color: var(--audle-record-light);
-  }
-  .empty {
-    margin: 0;
-    color: var(--audle-text-muted);
-    font-size: 0.875rem;
   }
 </style>

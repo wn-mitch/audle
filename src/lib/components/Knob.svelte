@@ -12,6 +12,8 @@
     dial = false,
     detail,
     disabled = false,
+    resetValue,
+    onReset,
   }: {
     label: string;
     value: number;
@@ -25,6 +27,8 @@
     dial?: boolean;
     detail?: string;
     disabled?: boolean;
+    resetValue?: number;
+    onReset?: () => void;
   } = $props();
 
   let gestureActive = false;
@@ -55,7 +59,12 @@
   };
 </script>
 
-<label class:disabled class:dial class="knob">
+<div
+  class:disabled
+  class={dial
+    ? 'knob dial grid min-h-[66px] min-w-0 grid-cols-[48px_minmax(0,1fr)_44px] content-center gap-[5px_8px] bg-transparent px-[2px] py-0 text-audle-text max-[540px]:grid-cols-[48px_minmax(0,1fr)] max-[400px]:grid-cols-[48px_minmax(0,1fr)_44px]'
+    : 'knob grid min-w-0 grid-cols-[1fr_auto] gap-[5px_8px] bg-audle-control p-2.5 text-audle-text shadow-[var(--audle-control-rest)]'}
+>
   {#if dial}
     <span class="dial-face" aria-hidden="true">
       <svg class="dial-arc" viewBox="0 0 56 56">
@@ -72,8 +81,8 @@
       <span class="dial-rotor" style={`--needle-angle: ${-135 + progress * 270}deg`}></span>
     </span>
   {/if}
-  <span class="label">{label}</span>
-  <output>{valueText}</output>
+  <span class="label text-xs font-bold tracking-[0.06em] uppercase">{label}</span>
+  <output class="font-mono text-xs text-audle-playback-light">{valueText}</output>
   {#if detail}<small class="detail">{detail}</small>{/if}
   <input
     aria-label={label}
@@ -99,31 +108,18 @@
     oninput={(event) => onChange(Number(event.currentTarget.value))}
     onchange={endGesture}
   />
-</label>
+  {#if dial && onReset && resetValue !== undefined}
+    <button
+      type="button"
+      class="dial-reset min-h-11 min-w-11 cursor-pointer border border-audle-outline-subtle bg-audle-control px-1 text-[0.65rem] font-bold text-audle-text hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:opacity-50"
+      aria-label={`Reset ${label}`}
+      disabled={disabled || value === resetValue}
+      onclick={onReset}>Reset</button
+    >
+  {/if}
+</div>
 
 <style>
-  .knob {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 5px 8px;
-    min-inline-size: 0;
-    padding: 10px;
-    background: var(--audle-control);
-    box-shadow: var(--audle-control-rest);
-    color: var(--audle-text);
-  }
-
-  .label {
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-  output {
-    color: var(--audle-playback-light);
-    font-family: ui-monospace, monospace;
-    font-size: 0.75rem;
-  }
   input {
     grid-column: 1 / -1;
     inline-size: 100%;
@@ -146,14 +142,7 @@
   }
 
   .knob.dial {
-    grid-template-columns: 48px minmax(0, 1fr);
     grid-template-rows: repeat(3, auto);
-    align-content: center;
-    column-gap: 8px;
-    min-block-size: 66px;
-    padding: 0 2px;
-    background: transparent;
-    box-shadow: none;
   }
   .knob.dial:has(input:active),
   .knob.dial.disabled {
@@ -250,6 +239,18 @@
     justify-self: center;
     margin: 0;
     opacity: 0;
+  }
+  .dial-reset {
+    grid-column: 3;
+    grid-row: 1 / 4;
+    align-self: center;
+  }
+  @media (min-width: 401px) and (max-width: 540px) {
+    .dial-reset {
+      grid-column: 2;
+      grid-row: 4;
+      justify-self: start;
+    }
   }
   .dial:has(input:focus-visible) .dial-face {
     outline: 3px solid var(--audle-focus);

@@ -12,17 +12,25 @@
 
 <form
   aria-label="Jam with Jev"
-  class="jam"
+  class="jam flex items-end gap-2 bg-audle-deck-raised px-3.5 py-2.5 shadow-[var(--audle-deck-edge)]"
   onsubmit={(event) => {
     event.preventDefault();
     void editor.jamWithJev(vibe);
   }}
 >
-  <label>
+  <label
+    class="grid min-w-0 flex-1 gap-0.5 text-[0.65rem] font-bold tracking-[0.08em] text-audle-text-muted uppercase"
+  >
     <span>Vibe for Jev</span>
-    <input maxlength="80" placeholder="eerie and slow" bind:value={vibe} />
+    <input
+      class="min-h-12 min-w-0 w-full border border-audle-outline bg-audle-well px-2.5 text-[0.9rem] tracking-normal text-audle-text normal-case"
+      maxlength="80"
+      placeholder="eerie and slow"
+      bind:value={vibe}
+    />
   </label>
   <button
+    class="inline-flex min-h-12 cursor-pointer items-center gap-1.5 border border-audle-loop-light bg-audle-control px-3.5 font-bold whitespace-nowrap text-audle-text shadow-[inset_0_0_0_1px_var(--audle-loop-light),var(--audle-control-rest)] hover:enabled:bg-audle-loop-surface disabled:cursor-not-allowed disabled:border-audle-disabled disabled:bg-audle-disabled disabled:text-audle-disabled-ink disabled:shadow-none"
     aria-busy={editor.jamming}
     disabled={editor.jamming || editor.loading || !hasEmptyTrack}
     title={hasEmptyTrack
@@ -30,79 +38,24 @@
       : 'Every track has clips. Clear one to let Jev jam.'}
     type="submit"
   >
-    <span class="spark" aria-hidden="true"><Icon name="spark" /></span>
+    <span class="spark inline-flex text-audle-loop-light" aria-hidden="true"
+      ><Icon name="spark" /></span
+    >
     {editor.jamming ? 'Jev is jamming…' : 'Jam with Jev'}
   </button>
 </form>
 
 <style>
-  .jam {
-    display: flex;
-    align-items: end;
-    gap: 8px;
-    padding: 10px 14px;
-    background: var(--audle-deck-raised);
-    box-shadow: var(--audle-deck-edge);
-  }
-  label {
-    display: grid;
-    flex: 1;
-    gap: 2px;
-    min-inline-size: 0;
-    color: var(--audle-text-muted);
-    font-size: 0.65rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  input {
-    min-block-size: 48px;
-    padding-inline: 10px;
-    border: 1px solid var(--audle-outline);
-    background: var(--audle-well);
-    color: var(--audle-text);
-    font-size: 0.9rem;
-    letter-spacing: normal;
-    text-transform: none;
-  }
-  button {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-block-size: 48px;
-    padding-inline: 14px;
-    border: 1px solid var(--audle-loop-light);
-    background: var(--audle-control);
-    box-shadow:
-      inset 0 0 0 1px var(--audle-loop-light),
-      var(--audle-control-rest);
-    color: var(--audle-text);
-    cursor: pointer;
-    font-weight: 700;
-    white-space: nowrap;
-  }
-  .spark {
-    display: inline-flex;
-    color: var(--audle-loop-light);
-  }
-  button:hover:not(:disabled) {
-    background: var(--audle-loop-surface);
-  }
-  button:disabled {
-    background: var(--audle-disabled);
-    border-color: var(--audle-disabled);
-    box-shadow: none;
-    color: var(--audle-disabled-ink);
-    cursor: not-allowed;
-  }
   button[aria-busy='true'] .spark {
     animation: spin 900ms linear infinite;
   }
+
   @keyframes spin {
     to {
       transform: rotate(360deg);
     }
   }
+
   @media (prefers-reduced-motion: reduce) {
     button[aria-busy='true'] .spark {
       animation: none;

@@ -76,29 +76,43 @@
 
 <dialog
   bind:this={dialog}
-  class="sheet"
+  class="sheet m-auto mb-3 max-h-[min(calc(100dvh_-_24px),_720px)] w-[min(calc(100%_-_24px),_520px)] border border-audle-outline bg-audle-deck-raised p-0 text-audle-text [box-shadow:var(--audle-deck-edge)]"
   aria-labelledby="share-title"
   onclose={onClose}
   onclick={(event) => {
     if (event.target === dialog) onClose();
   }}
 >
-  <div class="sheet-body">
-    <header>
-      <h2 id="share-title">Share</h2>
-      <button type="button" aria-label="Close" class="close" onclick={onClose}
-        ><Icon name="close" /></button
+  <div class="grid gap-5 px-5 pt-[18px] pb-5">
+    <header class="flex items-center justify-between">
+      <h2 id="share-title" class="m-0 text-xl tracking-[-0.02em]">Share</h2>
+      <button
+        type="button"
+        aria-label="Close"
+        class="grid size-11 cursor-pointer place-items-center border-0 bg-transparent text-audle-text-muted"
+        onclick={onClose}><Icon name="close" /></button
       >
     </header>
 
     <section aria-labelledby="share-loop-title">
-      <h3 id="share-loop-title">Your loop</h3>
-      <div class="actions">
-        <button type="button" class="primary" disabled={!hasLoop} use:press onclick={onShareLoop}
-          ><Icon name="share" /> Copy link</button
-        ><button
+      <h3
+        id="share-loop-title"
+        class="m-0 mb-2 text-[0.7rem] font-extrabold uppercase tracking-[0.08em] text-audle-text-muted"
+      >
+        Your loop
+      </h3>
+      <div class="flex flex-wrap gap-2">
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-accent bg-audle-accent px-3.5 font-bold text-audle-accent-ink enabled:hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:border-audle-disabled disabled:bg-audle-disabled disabled:text-audle-disabled-ink disabled:shadow-none [box-shadow:var(--audle-control-rest)]"
+          disabled={!hasLoop}
+          use:press
+          onclick={onShareLoop}><Icon name="share" /> Copy link</button
+        >
+        <button
           type="button"
           aria-label="Download loop WAV"
+          class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-outline bg-audle-control px-3.5 font-bold text-audle-text enabled:hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:border-audle-disabled disabled:bg-audle-disabled disabled:text-audle-disabled-ink disabled:shadow-none [box-shadow:var(--audle-control-rest)]"
           disabled={!hasLoop || exporting}
           use:press
           onclick={() => void download()}><Icon name="download" /> Download WAV</button
@@ -107,56 +121,95 @@
     </section>
 
     <section aria-labelledby="share-take-title">
-      <h3 id="share-take-title">Live take</h3>
+      <h3
+        id="share-take-title"
+        class="m-0 mb-2 text-[0.7rem] font-extrabold uppercase tracking-[0.08em] text-audle-text-muted"
+      >
+        Live take
+      </h3>
       {#if editor.performance}
-        <p>{takeSeconds} seconds of switching sounds in and out, replayed exactly as performed.</p>
-        <div class="actions">
-          <button type="button" use:press onclick={() => void editor.playCapture()}
+        <p class="m-0 mb-2.5 text-sm leading-6 text-audle-text-muted">
+          {takeSeconds} seconds of switching sounds in and out, replayed exactly as performed.
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-outline bg-audle-control px-3.5 font-bold text-audle-text enabled:hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:border-audle-disabled disabled:bg-audle-disabled disabled:text-audle-disabled-ink disabled:shadow-none [box-shadow:var(--audle-control-rest)]"
+            use:press
+            onclick={() => void editor.playCapture()}
             >{#if editor.playingPerformance}<Icon name="stop" /> Stop take{:else}<Icon
                 name="play"
               /> Play take{/if}</button
-          ><button
+          >
+          <button
             type="button"
-            class="primary"
+            class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-accent bg-audle-accent px-3.5 font-bold text-audle-accent-ink enabled:hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:border-audle-disabled disabled:bg-audle-disabled disabled:text-audle-disabled-ink disabled:shadow-none [box-shadow:var(--audle-control-rest)]"
             use:press
             onclick={() => onShareTake(editor.performance!)}
             ><Icon name="share" /> Copy take link</button
-          ><button
+          >
+          <button
             type="button"
             aria-label="Download take WAV"
+            class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-outline bg-audle-control px-3.5 font-bold text-audle-text enabled:hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:border-audle-disabled disabled:bg-audle-disabled disabled:text-audle-disabled-ink disabled:shadow-none [box-shadow:var(--audle-control-rest)]"
             disabled={exporting}
             use:press
             onclick={() => void download(true)}><Icon name="download" /> Download WAV</button
-          ><button
+          >
+          <button
             type="button"
-            class="quiet"
+            class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-transparent bg-transparent px-3.5 font-bold text-audle-text-muted shadow-none enabled:hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:border-audle-disabled disabled:bg-audle-disabled disabled:text-audle-disabled-ink disabled:shadow-none"
             disabled={editor.playingPerformance}
             onclick={() => editor.discardCapture()}>Discard take</button
           >
         </div>
       {:else}
-        <p>Press Record on the Play field, switch sounds on and off as the loop runs, then save.</p>
+        <p class="m-0 mb-2.5 text-sm leading-6 text-audle-text-muted">
+          Press Record on the Play field, switch sounds on and off as the loop runs, then save.
+        </p>
       {/if}
     </section>
 
     {#if fallbackLink}
       <section class="fallback" aria-labelledby="share-fallback-title">
-        <h3 id="share-fallback-title">Copy this link</h3>
-        <input bind:this={fallbackInput} readonly value={fallbackLink} />
+        <h3
+          id="share-fallback-title"
+          class="m-0 mb-2 text-[0.7rem] font-extrabold uppercase tracking-[0.08em] text-audle-text-muted"
+        >
+          Copy this link
+        </h3>
+        <input
+          bind:this={fallbackInput}
+          class="min-h-11 w-full border border-audle-outline bg-audle-well px-2 font-mono text-[0.8rem] text-audle-text"
+          readonly
+          value={fallbackLink}
+        />
       </section>
     {/if}
-    {#if exportError}<p class="error" role="alert">{exportError}</p>{/if}
-    {#if exporting}<p class="status" role="status">Rendering audio in your browser…</p>{/if}
+    {#if exportError}<p class="m-0 mb-2.5 text-sm leading-6 text-audle-record-light" role="alert">
+        {exportError}
+      </p>{/if}
+    {#if exporting}<p class="m-0 text-[0.78rem] text-audle-text-dim" role="status">
+        Rendering audio in your browser…
+      </p>{/if}
 
     {#if history.length}
       <section aria-labelledby="share-history-title">
-        <h3 id="share-history-title">Shared with you</h3>
-        <ul class="history">
+        <h3
+          id="share-history-title"
+          class="m-0 mb-2 text-[0.7rem] font-extrabold uppercase tracking-[0.08em] text-audle-text-muted"
+        >
+          Shared with you
+        </h3>
+        <ul class="history grid m-0 list-none border-t border-audle-outline-subtle p-0">
           {#each history as composition (composition.challenge.date + composition.tracks
               .map((track) => track.id)
               .join(':'))}
             <li>
-              <button type="button" onclick={() => onOpen(composition)}
+              <button
+                type="button"
+                class="flex min-h-12 w-full cursor-pointer items-center justify-between border-0 border-b border-audle-outline-subtle bg-transparent p-0 text-left text-sm text-audle-text hover:text-audle-accent"
+                onclick={() => onOpen(composition)}
                 ><span
                   >Made for {composition.challenge.date} · {composition.tracks.length} voices</span
                 ><Icon name="play" /></button
@@ -167,7 +220,7 @@
       </section>
     {/if}
 
-    <p class="footnote">
+    <p class="m-0 text-[0.78rem] text-audle-text-dim">
       No account needed. Your loop and take stay in this browser until you share them; a share link
       is kept on our server for 90 days.
     </p>
@@ -175,139 +228,7 @@
 </dialog>
 
 <style>
-  .sheet {
-    inline-size: min(100% - 24px, 520px);
-    max-block-size: min(100dvh - 24px, 720px);
-    margin: auto auto 12px;
-    padding: 0;
-    border: 1px solid var(--audle-outline);
-    background: var(--audle-deck-raised);
-    color: var(--audle-text);
-    box-shadow: var(--audle-deck-edge);
-  }
   .sheet::backdrop {
     background: oklch(0.05 0.01 232 / 0.6);
-  }
-  .sheet-body {
-    display: grid;
-    gap: 20px;
-    padding: 18px 20px 20px;
-  }
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  h2 {
-    margin: 0;
-    font-size: 1.25rem;
-    letter-spacing: -0.02em;
-  }
-  h3 {
-    margin: 0 0 8px;
-    color: var(--audle-text-muted);
-    font-size: 0.7rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  p {
-    margin: 0 0 10px;
-    color: var(--audle-text-muted);
-    font-size: 0.875rem;
-    line-height: 1.5;
-  }
-  .close {
-    display: grid;
-    place-items: center;
-    inline-size: 40px;
-    block-size: 40px;
-    border: 0;
-    background: transparent;
-    color: var(--audle-text-muted);
-    cursor: pointer;
-  }
-  .actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .actions button {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-block-size: 44px;
-    padding-inline: 14px;
-    border: 1px solid var(--audle-outline);
-    background: var(--audle-control);
-    box-shadow: var(--audle-control-rest);
-    color: var(--audle-text);
-    cursor: pointer;
-    font-weight: 700;
-  }
-  .actions button:hover:not(:disabled) {
-    background: var(--audle-control-hover);
-  }
-  .actions .primary {
-    border-color: var(--audle-accent);
-    background: var(--audle-accent);
-    color: var(--audle-accent-ink);
-  }
-  .actions .quiet {
-    border-color: transparent;
-    background: transparent;
-    box-shadow: none;
-    color: var(--audle-text-muted);
-  }
-  .actions button:disabled {
-    background: var(--audle-disabled);
-    border-color: var(--audle-disabled);
-    box-shadow: none;
-    color: var(--audle-disabled-ink);
-    cursor: not-allowed;
-  }
-  .fallback input {
-    inline-size: 100%;
-    min-block-size: 44px;
-    padding-inline: 8px;
-    border: 1px solid var(--audle-outline);
-    background: var(--audle-well);
-    color: var(--audle-text);
-    font-family: ui-monospace, monospace;
-    font-size: 0.8rem;
-  }
-  .history {
-    display: grid;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    border-block-start: 1px solid var(--audle-outline-subtle);
-  }
-  .history button {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    inline-size: 100%;
-    min-block-size: 48px;
-    padding: 0;
-    border: 0;
-    border-block-end: 1px solid var(--audle-outline-subtle);
-    background: transparent;
-    color: var(--audle-text);
-    cursor: pointer;
-    font-size: 0.875rem;
-    text-align: start;
-  }
-  .history button:hover {
-    color: var(--audle-accent);
-  }
-  .error {
-    color: var(--audle-record-light);
-  }
-  .status,
-  .footnote {
-    margin: 0;
-    color: var(--audle-text-dim);
-    font-size: 0.78rem;
   }
 </style>

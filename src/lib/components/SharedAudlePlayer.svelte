@@ -29,65 +29,82 @@
   );
 </script>
 
-<section class="shared" aria-labelledby="shared-title">
-  <header>
-    <button class="back" type="button" onclick={onBack}
-      ><Icon name="arrow-left" /> Back to Play</button
+<section
+  class="shared mx-auto w-full max-w-[780px] p-[clamp(20px,5vw,48px)]"
+  aria-labelledby="shared-title"
+>
+  <header class="border-b border-audle-outline pb-7">
+    <button
+      class="back inline-flex min-h-11 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 font-bold text-audle-text-muted"
+      type="button"
+      onclick={onBack}><Icon name="arrow-left" /> Back to Play</button
     >
-    <p>Shared Audle</p>
-    <h1 id="shared-title">{performance ? 'A live take' : 'Made for this moment'}</h1>
-    <span
+    <p class="mb-1 mt-5 text-[0.8rem] font-bold text-audle-text-muted">Shared Audle</p>
+    <h1 id="shared-title" class="m-0 text-[1.75rem] tracking-[-0.02em]">
+      {performance ? 'A live take' : 'Made for this moment'}
+    </h1>
+    <span class="mt-[9px] block text-audle-text-muted"
       >{composition.challenge.bpm} BPM · {composition.challenge.key.root}
       {composition.challenge.key.mode} · {composition.bars} bars{performance
         ? ` · ${Math.round((performance.durationTicks * 60) / (96 * composition.challenge.bpm))}s performance`
         : ''}</span
     >
   </header>
-  <div class="shared-controls">
+  <div class="shared-controls flex flex-wrap gap-2 py-[18px]">
     <button
       aria-label={playing ? 'Stop shared Audle' : 'Play shared Audle'}
       class:playing
-      class="play"
+      class="play inline-flex min-h-12 cursor-pointer items-center gap-2 border border-audle-outline bg-audle-control px-4 font-bold text-audle-text shadow-[var(--audle-control-rest)] {playing
+        ? 'border-audle-playback-light bg-audle-playback-surface'
+        : ''}"
       type="button"
       use:press
       onclick={onPlay}
       >{#if playing}<Icon name="stop" /> Stop{:else}<Icon name="play" />
         {performance ? 'Play take' : 'Play'}{/if}</button
     >
-    <button type="button" class="remix" use:press onclick={onRemix}
-      ><Icon name="arrow-right" /> Remix this</button
+    <button
+      type="button"
+      class="remix inline-flex min-h-12 cursor-pointer items-center gap-2 border border-audle-accent bg-audle-accent px-4 font-bold text-audle-accent-ink shadow-[var(--audle-control-rest)]"
+      use:press
+      onclick={onRemix}><Icon name="arrow-right" /> Remix this</button
     >
     <button
       aria-pressed={picked}
       class:picked
       type="button"
       title="Mark this as your favourite for today"
+      class="inline-flex min-h-12 cursor-pointer items-center gap-2 border border-audle-outline bg-audle-control px-4 font-bold text-audle-text shadow-[var(--audle-control-rest)] {picked
+        ? 'border-audle-accent-dim bg-audle-playback-surface'
+        : ''}"
       use:press
       onclick={onPick}><Icon name="check" /> Your pick</button
     >
   </div>
-  <dl>
-    <div>
-      <dt>Voices</dt>
-      <dd>{composition.tracks.length}</dd>
+  <dl class="m-0 grid grid-cols-3 gap-px bg-audle-outline">
+    <div class="bg-audle-deck-raised p-3">
+      <dt class="text-[0.7rem] uppercase text-audle-text-muted">Voices</dt>
+      <dd class="mb-0 ml-0 mt-1 text-[1.3rem] font-bold">{composition.tracks.length}</dd>
     </div>
-    <div>
-      <dt>Clips</dt>
-      <dd>{clipCount}</dd>
+    <div class="bg-audle-deck-raised p-3">
+      <dt class="text-[0.7rem] uppercase text-audle-text-muted">Clips</dt>
+      <dd class="mb-0 ml-0 mt-1 text-[1.3rem] font-bold">{clipCount}</dd>
     </div>
-    <div>
-      <dt>Sources</dt>
-      <dd>{SOURCES_PER_DAY} daily sounds</dd>
+    <div class="bg-audle-deck-raised p-3">
+      <dt class="text-[0.7rem] uppercase text-audle-text-muted">Sources</dt>
+      <dd class="mb-0 ml-0 mt-1 text-[1.3rem] font-bold">{SOURCES_PER_DAY} daily sounds</dd>
     </div>
   </dl>
-  <ol class="voice-list">
+  <ol class="voice-list my-6 list-none border-t border-audle-outline p-0">
     {#each composition.tracks as track, index (track.id)}
-      <li>
-        <span
+      <li
+        class="grid min-h-[54px] grid-cols-[86px_minmax(0,1fr)_auto] items-center gap-2 border-b border-audle-outline"
+      >
+        <span class="text-[0.75rem] text-audle-text-muted"
           >{index < SOURCES_PER_DAY
             ? `Source ${index + 1}`
             : `Layer ${index - SOURCES_PER_DAY + 1}`}</span
-        ><strong>{track.label}</strong><small
+        ><strong>{track.label}</strong><small class="text-[0.75rem] text-audle-text-muted"
           >{track.clips.length} clips · {track.controls.tuneSemitones > 0 ? '+' : ''}{track.controls
             .tuneSemitones} st</small
         >

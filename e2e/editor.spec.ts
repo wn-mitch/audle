@@ -48,6 +48,10 @@ test('tapping a loop lane on a phone fills that bar', async ({ page }, testInfo)
   const lane = page.locator('.lane-content').first();
   await lane.scrollIntoViewIfNeeded();
   await page.locator('.timeline-scroll').evaluate((element) => element.scrollTo({ left: 0 }));
+  await page.evaluate(() => {
+    const top = document.querySelector('.timeline-scroll')!.getBoundingClientRect().top + scrollY;
+    scrollTo(0, Math.max(0, top - 150));
+  });
   const header = (await page.locator('.track-header').first().boundingBox())!;
   await page.touchscreen.tap(header.x + header.width + 40, header.y + header.height / 2);
   await expect(lane.locator('.clip:not(.hit)')).toHaveAttribute('aria-label', /at tick 0\b/);
@@ -124,4 +128,106 @@ test('dragging a hit moves it by whole sixteenths and keeps it selected', async 
   expect(Math.abs(moved.x - hitBox.x - box.width * 0.25)).toBeLessThan(3);
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(hit).toHaveAttribute('aria-label', /at tick 384\b/);
+});
+
+test('desktop wheel over a lane scrolls the page instead of trapping it', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name === 'mobile-chromium', 'Desktop scrolling contract.');
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  const lane = page.locator('.lane-content').first();
+  const box = (await lane.boundingBox())!;
+  await page.mouse.move(box.x + 80, box.y + box.height / 2);
+  await page.mouse.wheel(0, 350);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(0);
+  await expect(page.locator('.timeline-scroll')).toHaveJSProperty('scrollTop', 0);
+});
+
+test('phone timeline pans horizontally, then chains vertical scrolling to the page', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium', 'Phone timeline contract.');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  const timeline = page.locator('.timeline-scroll');
+  const showTimeline = () =>
+    page.evaluate(() => {
+      const top = document.querySelector('.timeline-scroll')!.getBoundingClientRect().top + scrollY;
+      scrollTo(0, Math.max(0, top - 150));
+    });
+  await showTimeline();
+  const pageBefore = await page.evaluate(() => scrollY);
+  const box = (await timeline.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + 100);
+  await page.mouse.wheel(0, 220);
+  await expect.poll(() => timeline.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(pageBefore);
+  await page.mouse.wheel(0, 1800);
+  await page.mouse.wheel(0, 400);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(pageBefore);
+
+  await timeline.evaluate((node) => {
+    node.scrollTop = 0;
+  });
+  await showTimeline();
+  const panBox = (await timeline.boundingBox())!;
+  await page.mouse.move(panBox.x + panBox.width / 2, panBox.y + 100);
+  const before = await timeline.evaluate((node) => node.scrollLeft);
+  await page.mouse.wheel(250, 0);
+  await expect.poll(() => timeline.evaluate((node) => node.scrollLeft)).toBeGreaterThan(before);
+  await timeline.evaluate((node) => {
+    node.scrollLeft = 0;
+  });
+  await showTimeline();
+  const lane = page.locator('.lane-content').first();
+  const header = (await page.locator('.track-header').first().boundingBox())!;
+  await page.touchscreen.tap(header.x + header.width + 40, header.y + header.height / 2);
+  await expect(lane.locator('.clip:not(.hit)')).toHaveCount(1);
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 700 });
+    expect(
+      await page.evaluate(() =>
+        Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      ),
+    ).toBeLessThanOrEqual(width);
+  }
+});
+
+test('a cloned voice carries its source hue without replacing clip role colours', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  await page.getByRole('button', { name: 'Remix today’s starter' }).click();
+  await page.getByRole('button', { name: 'Add a layer' }).click();
+  const source = page.locator('.lane').first();
+  const clone = page.locator('.lane').last();
+  const colors = await page.evaluate(() => {
+    const lanes = document.querySelectorAll<HTMLElement>('.lane');
+    const first = lanes[0]!;
+    const last = lanes[lanes.length - 1]!;
+    const clip = last.querySelector<HTMLElement>('.clip')!;
+    return {
+      source: getComputedStyle(first).getPropertyValue('--source').trim(),
+      clone: getComputedStyle(last).getPropertyValue('--source').trim(),
+      glyph: getComputedStyle(last.querySelector('.kind')!).color,
+      background: getComputedStyle(clip).backgroundColor,
+      roleBackground: getComputedStyle(document.documentElement)
+        .getPropertyValue('--audle-loop-surface')
+        .trim(),
+      border: getComputedStyle(clip).borderColor,
+      roleBorder: getComputedStyle(document.documentElement)
+        .getPropertyValue('--audle-loop-light')
+        .trim(),
+    };
+  });
+  await expect(source).toBeVisible();
+  await expect(clone).toBeVisible();
+  expect(colors.source).not.toBe('');
+  expect(colors.clone).toBe(colors.source);
+  expect(colors.glyph).toContain('oklch');
+  expect(colors.background).toBe(colors.roleBackground);
+  expect(colors.border).toBe(colors.roleBorder);
 });
