@@ -4,6 +4,7 @@
   import { sampleById } from '../data/samples';
   import {
     SOURCES_PER_DAY,
+    DEFAULT_TRACK_CONTROLS,
     sourceTicks,
     TICKS_PER_BAR,
     TICKS_PER_SIXTEENTH,
@@ -29,6 +30,7 @@
   let stage = $state<HTMLElement>();
   let lastBeat = -1;
   const tracks = $derived(editor.composition.tracks.slice(0, SOURCES_PER_DAY));
+  const hasClips = $derived(tracks.some((track) => track.clips.length > 0));
   const selected = $derived(editor.selectedTrack);
   const sample = $derived(selected ? sampleById(selected.sampleId) : undefined);
   const sourceIndex = $derived(tracks.findIndex((track) => track.sampleId === selected?.sampleId));
@@ -53,6 +55,21 @@
       editor.playingPerformance ||
       editor.captureStatus !== 'idle',
   );
+  type TuningControl = 'gainDb' | 'pan' | 'tuneSemitones' | 'space' | 'echo' | 'fuzz';
+  const resetControl = (property: TuningControl) => {
+    if (
+      !selected ||
+      tuningDisabled ||
+      selected.controls[property] === DEFAULT_TRACK_CONTROLS[property]
+    )
+      return;
+    editor.beginControlGesture();
+    editor.updateSelectedTrackControls({
+      ...selected.controls,
+      [property]: DEFAULT_TRACK_CONTROLS[property],
+    });
+    editor.endControlGesture();
+  };
 
   // Compare the actual clips with each unshifted feel, rather than remembering an offset that
   // could be stale after an Arrange edit or a restored draft.
@@ -148,12 +165,26 @@
   );
 </script>
 
-<section class="play-world" aria-labelledby="play-title">
+<section
+  class="play-world mx-auto flex min-h-[calc(100dvh_-_64px)] w-[calc(100%_-_20px)] max-w-[1240px] items-center py-1 max-[899px]:block max-[899px]:min-h-0 max-[899px]:max-w-[600px]"
+  aria-labelledby="play-title"
+>
   <h1 id="play-title" class="sr-only">Play today's loop</h1>
-  <div class="stage-frame" bind:this={stage}>
-    <div class="stage-topline" role="status">
-      <span>PLAY <i class:lit={editor.playing}></i></span>
-      {#if editor.captureStatus !== 'idle'}<strong class="capture-light"
+  <div
+    class="stage-frame grid w-full overflow-hidden border border-audle-outline bg-audle-deck-raised shadow-[var(--audle-deck-edge)] max-[899px]:grid-cols-1"
+    bind:this={stage}
+  >
+    <div
+      class="stage-topline flex min-h-[34px] items-center justify-between gap-2.5 border-b border-audle-grid-major px-3.5 py-1 font-mono text-[0.68rem] font-bold tracking-[0.06em] text-audle-text-muted max-[899px]:order-1 max-[540px]:text-[0.58rem]"
+      role="status"
+    >
+      <span
+        >PLAY <i
+          class="ml-[5px] inline-block size-[7px] rounded-full bg-audle-text-dim"
+          class:lit={editor.playing}
+        ></i></span
+      >
+      {#if editor.captureStatus !== 'idle'}<strong class="capture-light text-audle-record-light"
           >{editor.captureStatus === 'count-in'
             ? 'COUNTING IN · STARTS NEXT BAR'
             : 'LIVE TAKE · RECORDING'}</strong
@@ -161,11 +192,18 @@
       <span
         >{editor.loading
           ? 'DECODING SOUNDS'
-          : `${activeCount.toString().padStart(2, '0')} LIVE`}</span
+          : !hasClips
+            ? 'Tap a pad to build a loop'
+            : `${activeCount.toString().padStart(2, '0')} LIVE`}</span
       >
     </div>
-    <div class="stage-body">
-      <div class="objects" aria-label="Sixteen sounds">
+    <div
+      class="stage-body contents min-[900px]:grid min-[900px]:grid-cols-[minmax(0,min(45vw,600px,calc(100dvh_-_210px)))_minmax(0,1fr)] min-[900px]:gap-3.5 min-[900px]:p-[6px_10px]"
+    >
+      <div
+        class="objects grid aspect-square w-full grid-cols-4 gap-1.5 max-[899px]:order-2 max-[899px]:mx-auto max-[899px]:max-w-[465px] max-[899px]:px-2.5 max-[899px]:pb-6 max-[899px]:pt-1.5 max-[540px]:gap-1"
+        aria-label="Sixteen sounds"
+      >
         {#each tracks as track, index (track.id)}
           <SoundPad
             {editor}
@@ -180,16 +218,18 @@
         {/each}
       </div>
       <section
-        class="play-controls"
+        class="play-controls flex min-w-0 flex-col p-[2px_8px_0_4px] [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-50 max-[899px]:order-4 max-[899px]:min-h-[370px] max-[899px]:px-3 max-[899px]:pb-3 max-[899px]:pt-1 max-[540px]:min-h-[380px]"
         aria-label="Selected sound controls"
         style={sourceIndex >= 0 ? `--source:var(--audle-source-${sourceIndex + 1})` : undefined}
       >
-        <div class="identity-row">
-          <h2>{selected ? selected.label : 'Pick a sound'}</h2>
-          <div class="identity-actions">
+        <div class="identity-row flex min-w-0 items-center justify-between gap-2.5">
+          <h2 class="min-w-0 truncate text-[1.35rem] leading-[1.25] tracking-[-0.035em]">
+            {selected ? selected.label : 'Pick a sound'}
+          </h2>
+          <div class="identity-actions flex flex-none gap-1.5">
             <button
               type="button"
-              class="hear-control"
+              class="hear-control inline-flex min-h-11 min-w-11 flex-none items-center gap-1.5 border border-audle-outline-subtle bg-audle-control px-2.5 text-[0.72rem] font-bold text-audle-text"
               disabled={!selected ||
                 editor.loading ||
                 !!editor.loadingError ||
@@ -202,7 +242,7 @@
             >
             <button
               type="button"
-              class="solo-control"
+              class="solo-control min-h-11 min-w-11 flex-none whitespace-nowrap border border-audle-outline-subtle bg-audle-control px-[9px] text-[0.72rem] font-bold text-audle-text"
               aria-pressed={!!selected &&
                 (editor.queuedSolo[selected.id] ?? selected.controls.solo)}
               disabled={!selected?.clips.length ||
@@ -220,17 +260,23 @@
             >
           </div>
         </div>
-        <div class="source-row">
-          <p>
+        <div class="source-row flex min-h-[42px] min-w-0 items-center justify-between gap-2.5">
+          <p
+            class="m-0 min-w-0 font-mono text-[0.63rem] leading-[1.4] font-bold text-audle-text-muted max-[540px]:text-[0.58rem]"
+          >
             {sample
               ? `${sample.role.toUpperCase()} · ${sample.kind === 'one-shot' ? 'ONE-SHOT' : 'LOOP'} · ${editor.loading ? 'Loading sound' : duration === undefined ? 'Duration unavailable' : `${duration < 1 ? duration.toFixed(2) : duration.toFixed(1)} sec`}${sample.kind === 'loop' ? ` · ${sample.bars ?? 2}-BAR SOURCE` : ''}`
-              : 'Select a sound'}<span>&nbsp;· {editor.composition.bars}-BAR ARRANGEMENT</span>
+              : 'Select a sound'}<span class="text-audle-text-dim max-[540px]:block"
+              >&nbsp;· {editor.composition.bars}-BAR ARRANGEMENT</span
+            >
           </p>
         </div>
-        <div class="groove-heading">
+        <div
+          class="groove-heading mt-2 flex items-center justify-between gap-2 border-t border-audle-grid-major pt-2.5"
+        >
           <div>
-            <h3>Groove</h3>
-            <p>
+            <h3 class="m-0 text-base">Groove</h3>
+            <p class="mb-0 mt-0.5 text-[0.72rem] text-audle-text-muted">
               {pattern === 'empty'
                 ? 'Choose how this sound moves.'
                 : pattern === 'custom'
@@ -238,14 +284,23 @@
                   : `${pattern[0]?.toUpperCase()}${pattern.slice(1)} feel for this sound.`}
             </p>
           </div>
-          <div class="offset" role="group" aria-label="Pattern offset">
-            <span>OFFSET <output>{offset}</output></span><button
+          <div
+            class="offset flex flex-none items-center gap-[3px]"
+            role="group"
+            aria-label="Pattern offset"
+          >
+            <span
+              class="mr-[5px] whitespace-nowrap font-mono text-[0.6rem] font-bold text-audle-text-muted"
+              >OFFSET <output>{offset}</output></span
+            ><button
+              class="min-h-11 min-w-11 flex-none border border-audle-outline-subtle bg-audle-control text-[0.72rem] font-bold text-audle-text"
               type="button"
               aria-label="Offset pattern one step earlier"
               disabled={!selected?.clips.length || feelDisabled}
               use:press={{ disabled: !selected?.clips.length || feelDisabled }}
               onclick={() => selected && editor.offsetLivePattern(selected.id, -1)}>−1</button
             ><button
+              class="min-h-11 min-w-11 flex-none border border-audle-outline-subtle bg-audle-control text-[0.72rem] font-bold text-audle-text"
               type="button"
               aria-label="Offset pattern one step later"
               disabled={!selected?.clips.length || feelDisabled}
@@ -254,8 +309,14 @@
             >
           </div>
         </div>
-        <div class="patterns" role="group" aria-label="Pattern feel">
-          {#each LIVE_PATTERNS as option (option)}<button
+        <div
+          class="patterns mt-[9px] grid grid-cols-3 border border-audle-outline-subtle bg-audle-control max-[540px]:grid-cols-2"
+          role="group"
+          aria-label="Pattern feel"
+        >
+          {#each LIVE_PATTERNS as option (option)}
+            <button
+              class="relative min-h-11 border-0 border-b border-e border-audle-outline-subtle bg-transparent p-[5px] text-[0.74rem] font-bold capitalize text-audle-text disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               class:chosen={pattern === option}
               disabled={feelDisabled}
@@ -264,9 +325,13 @@
               use:popOn={pattern === option}
               onclick={() => selected && editor.chooseLivePattern(selected.id, option)}
               >{option}</button
-            >{/each}
+            >
+          {/each}
         </div>
-        <div class="dials" aria-label="Sound tuning">
+        <div
+          class="dials mt-auto grid grid-cols-2 gap-x-1.5 gap-y-1 border-t border-audle-grid-major pt-2 min-[1101px]:grid-cols-3 max-[400px]:grid-cols-1"
+          aria-label="Sound tuning"
+        >
           <Knob
             dial
             label="Level"
@@ -276,6 +341,8 @@
             step={0.5}
             valueText={`${selected?.controls.gainDb ?? 0} dB`}
             disabled={tuningDisabled}
+            resetValue={DEFAULT_TRACK_CONTROLS.gainDb}
+            onReset={() => resetControl('gainDb')}
             onStart={() => editor.beginControlGesture()}
             onChange={(gainDb) =>
               selected && editor.updateSelectedTrackControls({ ...selected.controls, gainDb })}
@@ -292,6 +359,8 @@
               ? 'CENTER'
               : `${selected.controls.pan < 0 ? 'LEFT' : 'RIGHT'} ${Math.round(Math.abs(selected.controls.pan) * 100)}`}
             disabled={tuningDisabled}
+            resetValue={DEFAULT_TRACK_CONTROLS.pan}
+            onReset={() => resetControl('pan')}
             onStart={() => editor.beginControlGesture()}
             onChange={(pan) =>
               selected && editor.updateSelectedTrackControls({ ...selected.controls, pan })}
@@ -309,6 +378,8 @@
               : `${selected.controls.tuneSemitones > 0 ? '+' : '−'}${Math.abs(selected.controls.tuneSemitones)} ${Math.abs(selected.controls.tuneSemitones) === 1 ? 'STEP' : 'STEPS'}`}
             disabled={tuningDisabled}
             onStart={() => editor.beginControlGesture()}
+            resetValue={DEFAULT_TRACK_CONTROLS.tuneSemitones}
+            onReset={() => resetControl('tuneSemitones')}
             onChange={(tuneSemitones) =>
               selected &&
               editor.updateSelectedTrackControls({ ...selected.controls, tuneSemitones })}
@@ -324,6 +395,8 @@
             step={0.05}
             valueText={`${Math.round((selected?.controls.space ?? 0) * 100)}%`}
             disabled={tuningDisabled}
+            resetValue={DEFAULT_TRACK_CONTROLS.space}
+            onReset={() => resetControl('space')}
             onStart={() => editor.beginControlGesture()}
             onChange={(space) =>
               selected && editor.updateSelectedTrackControls({ ...selected.controls, space })}
@@ -339,6 +412,8 @@
             step={0.05}
             valueText={`${Math.round((selected?.controls.echo ?? 0) * 100)}%`}
             disabled={tuningDisabled}
+            resetValue={DEFAULT_TRACK_CONTROLS.echo}
+            onReset={() => resetControl('echo')}
             onStart={() => editor.beginControlGesture()}
             onChange={(echo) =>
               selected && editor.updateSelectedTrackControls({ ...selected.controls, echo })}
@@ -354,6 +429,8 @@
             step={0.05}
             valueText={`${Math.round((selected?.controls.fuzz ?? 0) * 100)}%`}
             disabled={tuningDisabled}
+            resetValue={DEFAULT_TRACK_CONTROLS.fuzz}
+            onReset={() => resetControl('fuzz')}
             onStart={() => editor.beginControlGesture()}
             onChange={(fuzz) =>
               selected && editor.updateSelectedTrackControls({ ...selected.controls, fuzz })}
@@ -362,17 +439,19 @@
         </div>
       </section>
     </div>
-    <div class="play-footer">
-      <div class="footer-main">
+    <div
+      class="play-footer flex min-h-16 items-center justify-between gap-2.5 border-t border-audle-grid-major bg-audle-deck px-3 py-2 max-[899px]:order-3 max-[540px]:flex-wrap"
+    >
+      <div class="footer-main flex gap-[7px] max-[540px]:order-0 max-[540px]:basis-full">
         <button
-          class="transport"
+          class="transport inline-flex min-h-12 items-center justify-center gap-[7px] whitespace-nowrap border border-audle-outline bg-audle-accent px-3.5 text-[0.78rem] font-bold text-audle-accent-ink shadow-[var(--audle-control-rest)] disabled:cursor-not-allowed disabled:opacity-45 max-[540px]:flex-1 max-[540px]:px-1.5"
           type="button"
           disabled={editor.loading || !!editor.loadingError}
           use:press
           onclick={() => void editor.togglePlayback()}
           >{#if editor.playing}<Icon name="stop" /> Stop loop{:else}<Icon name="play" /> Play loop{/if}</button
         ><button
-          class="record"
+          class="record inline-flex min-h-12 items-center justify-center gap-[7px] whitespace-nowrap border border-audle-outline bg-audle-control px-3.5 text-[0.78rem] font-bold text-audle-text shadow-[var(--audle-control-rest)] disabled:cursor-not-allowed disabled:opacity-45 max-[540px]:flex-1 max-[540px]:px-1.5"
           class:armed={editor.captureStatus !== 'idle'}
           type="button"
           aria-pressed={editor.captureStatus !== 'idle'}
@@ -392,15 +471,19 @@
               : 'Save take'}</button
         >
       </div>
-      <div class="next-actions">
+      <div class="next-actions flex gap-[7px] max-[540px]:order-2 max-[540px]:basis-full">
         <button
           type="button"
-          class="share"
+          class="share inline-flex min-h-12 items-center justify-center gap-[7px] whitespace-nowrap border border-audle-outline bg-audle-control px-3.5 text-[0.78rem] font-bold text-audle-text shadow-[var(--audle-control-rest)] disabled:cursor-not-allowed disabled:opacity-45 max-[540px]:flex-1 max-[540px]:px-1.5"
           disabled={!editor.composition.tracks.some((track) => track.clips.length)}
           use:press
           onclick={onShare}><Icon name="share" /> Share</button
-        ><button type="button" aria-label="Go to Arrange" use:press onclick={onArrange}
-          >Arrange <Icon name="arrow-right" /></button
+        ><button
+          class="inline-flex min-h-12 items-center justify-center gap-[7px] whitespace-nowrap border border-audle-outline bg-audle-control px-3.5 text-[0.78rem] font-bold text-audle-text shadow-[var(--audle-control-rest)] max-[540px]:flex-1 max-[540px]:px-1.5"
+          type="button"
+          aria-label="Go to Arrange"
+          use:press
+          onclick={onArrange}>Arrange <Icon name="arrow-right" /></button
         >
       </div>
     </div>
@@ -408,345 +491,82 @@
 </section>
 
 <style>
-  .sr-only {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-  .play-world {
-    inline-size: min(100% - 20px, 1060px);
-    margin: 0 auto;
-    padding: 4px 0;
-  }
-  .stage-frame {
-    overflow: hidden;
-    border: 1px solid var(--audle-outline);
-    background: var(--audle-deck-raised);
-    box-shadow: var(--audle-deck-edge);
-  }
-  .stage-topline {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    min-block-size: 34px;
-    padding: 4px 14px;
-    border-bottom: 1px solid var(--audle-grid-major);
-    color: var(--audle-text-muted);
-    font:
-      700 0.68rem ui-monospace,
-      monospace;
-    letter-spacing: 0.06em;
-  }
-  .stage-topline i {
-    display: inline-block;
-    inline-size: 7px;
-    block-size: 7px;
-    margin-inline-start: 5px;
-    border-radius: 50%;
-    background: var(--audle-text-dim);
-  }
   .stage-topline i.lit {
     background: var(--audle-accent);
   }
-  .capture-light {
-    color: var(--audle-record-light);
-  }
-  .stage-body {
-    display: grid;
-    grid-template-columns: minmax(0, 440px) minmax(0, 1fr);
-    gap: 14px;
-    padding: 6px 10px;
-  }
-  .objects {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
-    inline-size: 100%;
-    aspect-ratio: 1;
-  }
-  .play-controls {
-    display: flex;
-    flex-direction: column;
-    min-inline-size: 0;
-    padding: 2px 8px 0 4px;
-  }
-  .identity-row,
-  .source-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    min-inline-size: 0;
-  }
-  .identity-actions {
-    display: flex;
-    flex: none;
-    gap: 6px;
-  }
-  .identity-row h2 {
-    min-inline-size: 0;
-    margin: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    font-size: 1.35rem;
-    line-height: 1.25;
-    letter-spacing: -0.035em;
-  }
-  .play-controls button {
-    cursor: pointer;
-  }
-  .play-controls button:disabled {
-    opacity: 0.48;
-    cursor: not-allowed;
-  }
-  .hear-control,
-  .solo-control,
-  .offset button {
-    flex: none;
-    min-block-size: 44px;
-    min-inline-size: 44px;
-    border: 1px solid var(--audle-outline-subtle);
-    background: var(--audle-control);
-    color: var(--audle-text);
-    font-size: 0.72rem;
-    font-weight: 700;
-  }
+
   .hear-control {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding-inline: 10px;
     border-color: oklch(var(--source) / 0.7);
   }
+
   .hear-control :global(.icon) {
     color: oklch(var(--source));
   }
-  .source-row {
-    min-block-size: 42px;
-  }
-  .source-row p {
-    min-inline-size: 0;
-    margin: 0;
-    color: var(--audle-text-muted);
-    font:
-      700 0.63rem/1.4 ui-monospace,
-      monospace;
-  }
-  .source-row p span {
-    color: var(--audle-text-dim);
-  }
-  .solo-control {
-    padding-inline: 9px;
-    white-space: nowrap;
-  }
+
   .solo-control[aria-pressed='true'] {
     border-color: oklch(var(--source));
     background: color-mix(in srgb, var(--audle-control) 70%, oklch(var(--source)) 30%);
   }
-  .groove-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-block-start: 8px;
-    padding-block-start: 10px;
-    border-top: 1px solid var(--audle-grid-major);
-  }
-  .groove-heading h3 {
-    margin: 0;
-    font-size: 1rem;
-  }
-  .groove-heading p {
-    margin: 2px 0 0;
-    color: var(--audle-text-muted);
-    font-size: 0.72rem;
-  }
-  .offset {
-    display: flex;
-    flex: none;
-    align-items: center;
-    gap: 3px;
-  }
-  .offset span {
-    margin-inline-end: 5px;
-    color: var(--audle-text-muted);
-    font:
-      700 0.6rem ui-monospace,
-      monospace;
-    white-space: nowrap;
-  }
+
   .offset output {
     color: oklch(var(--source));
   }
+
   .offset button:hover:not(:disabled),
   .hear-control:hover:not(:disabled),
   .solo-control:hover:not(:disabled) {
     background: color-mix(in srgb, var(--audle-control) 80%, oklch(var(--source)) 20%);
   }
-  .patterns {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin-block-start: 9px;
-    border: 1px solid var(--audle-outline-subtle);
-    background: var(--audle-control);
-  }
-  .patterns button {
-    position: relative;
-    min-block-size: 44px;
-    padding: 5px;
-    border: 0;
-    border-inline-end: 1px solid var(--audle-outline-subtle);
-    border-block-end: 1px solid var(--audle-outline-subtle);
-    background: transparent;
-    color: var(--audle-text);
-    font-size: 0.74rem;
-    font-weight: 700;
-    text-transform: capitalize;
-  }
+
   .patterns button:nth-child(3n) {
     border-inline-end: 0;
   }
+
   .patterns button:nth-last-child(-n + 3) {
     border-block-end: 0;
   }
+
   .patterns button:hover:not(:disabled),
   .patterns button:global([data-pressed='true']) {
     background: color-mix(in srgb, var(--audle-control) 75%, oklch(var(--source)) 25%);
   }
+
   .patterns button.chosen {
     background: color-mix(in srgb, var(--audle-control) 65%, oklch(var(--source)) 35%);
     box-shadow: inset 0 -2px oklch(var(--source));
   }
-  .dials {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 4px 6px;
-    margin-block-start: auto;
-    padding-block-start: 8px;
-    border-top: 1px solid var(--audle-grid-major);
-  }
-  .play-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    min-block-size: 64px;
-    padding: 8px 12px;
-    border-top: 1px solid var(--audle-grid-major);
-    background: var(--audle-deck);
-  }
-  .footer-main,
-  .next-actions {
-    display: flex;
-    gap: 7px;
-  }
-  .footer-main {
-    justify-self: start;
-  }
-  .next-actions {
-    justify-self: end;
-  }
-  .play-footer button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    min-block-size: 48px;
-    padding-inline: 14px;
-    border: 1px solid var(--audle-outline);
-    background: var(--audle-control);
-    box-shadow: var(--audle-control-rest);
-    color: var(--audle-text);
-    cursor: pointer;
-    font-size: 0.78rem;
-    font-weight: 700;
-    white-space: nowrap;
-  }
-  .play-footer button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-  .play-footer .transport {
-    border-color: var(--audle-accent);
-    background: var(--audle-accent);
-    color: var(--audle-accent-ink);
-  }
+
   .play-footer .record :global(.icon) {
     color: var(--audle-record-light);
   }
+
   .play-footer .record.armed {
     border-color: var(--audle-record-light);
     background: var(--audle-record-surface);
   }
-  @media (max-width: 899px) {
-    .play-world {
-      inline-size: min(100% - 20px, 600px);
+
+  /* A transient notice occupies the same viewport as the instrument, not an extra page. */
+  @media (min-width: 900px) {
+    :global(.app-shell:has(.notice)) .play-world {
+      min-block-size: calc(100dvh - 130px);
     }
-    .stage-body {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .objects {
-      max-inline-size: 465px;
-      margin-inline: auto;
-    }
-    .play-controls {
-      min-block-size: 370px;
-      padding: 4px;
+
+    :global(.app-shell:has(.notice)) .stage-body {
+      grid-template-columns: minmax(0, min(45vw, 600px, calc(100dvh - 276px))) minmax(0, 1fr);
     }
   }
+
   @media (max-width: 540px) {
-    .stage-topline {
-      font-size: 0.58rem;
-    }
-    .objects {
-      gap: 4px;
-    }
-    .play-controls {
-      min-block-size: 380px;
-    }
-    .source-row p {
-      font-size: 0.58rem;
-    }
-    .source-row p span {
-      display: block;
-    }
-    .patterns {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
     .patterns button:nth-child(3n) {
       border-inline-end: 1px solid var(--audle-outline-subtle);
     }
+
     .patterns button:nth-child(2n) {
       border-inline-end: 0;
     }
-    .dials {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+
     .patterns button:nth-last-child(3) {
       border-block-end: 1px solid var(--audle-outline-subtle);
-    }
-    .play-footer {
-      flex-wrap: wrap;
-      display: flex;
-    }
-    .footer-main,
-    .next-actions {
-      flex: 1 1 100%;
-    }
-    .footer-main {
-      order: 0;
-    }
-    .next-actions {
-      order: 2;
-    }
-    .play-footer button {
-      flex: 1;
-      padding-inline: 6px;
     }
   }
 </style>

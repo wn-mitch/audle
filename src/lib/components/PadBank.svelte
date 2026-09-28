@@ -19,12 +19,21 @@
   );
 </script>
 
-<section aria-label="Today’s sounds" class="pad-bank" aria-busy={editor.loading} bind:this={bank}>
-  <header>
-    <p>Today’s source deck</p>
-    <span>{editor.loading ? 'Decoding sounds' : 'Tap any sound'}</span>
+<section
+  aria-label="Today’s sounds"
+  class="pad-bank grid min-w-0 content-start gap-2.5 bg-audle-deck-raised p-3.5 shadow-[var(--audle-deck-edge)]"
+  aria-busy={editor.loading}
+  bind:this={bank}
+>
+  <header class="flex items-baseline justify-between gap-2">
+    <p class="m-0 text-[0.7rem] font-extrabold uppercase tracking-[0.1em]">Today’s source deck</p>
+    <span class="text-[0.75rem] text-audle-text-muted"
+      >{editor.loading ? 'Decoding sounds' : 'Tap any sound'}</span
+    >
   </header>
-  <div class="pads">
+  <div
+    class="pads grid grid-cols-2 gap-2 max-[959px]:flex max-[959px]:snap-x max-[959px]:snap-proximity max-[959px]:overflow-x-auto max-[959px]:overscroll-x-contain max-[959px]:pb-1"
+  >
     {#each challenge.sampleIds as sampleId, index (sampleId)}
       {@const sample = sampleById(sampleId)!}
       {@const selected = editor.selectedTrack?.sampleId === sampleId}
@@ -33,9 +42,10 @@
         class:loop={sample.kind === 'loop'}
         class:selected
         class:skeleton={editor.loading}
-        class="pad"
+        class="pad relative grid min-h-[68px] grid-cols-[auto_1fr] items-center gap-x-2 gap-y-0.5 overflow-hidden border-[color:var(--pad-light)] bg-[var(--pad-face)] p-2.5 text-left text-audle-text shadow-[var(--pad-shadow)] transition-[background] duration-100 ease-out enabled:hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:border-audle-disabled disabled:bg-audle-disabled disabled:text-audle-disabled-ink max-[959px]:flex-[0_0_148px] max-[959px]:snap-start motion-reduce:transition-none"
         data-sample-id={sampleId}
         disabled={editor.loading || Boolean(editor.loadingError)}
+        style={`--source:var(--audle-source-${index + 1})`}
         type="button"
         use:press={{ disabled: editor.loading || Boolean(editor.loadingError) }}
         use:enter={{ index, columns: 2, once: 'pad-bank' }}
@@ -51,81 +61,48 @@
           }
         }}
       >
-        <span aria-hidden="true" class="pad-glyph glyph"
+        <span aria-hidden="true" class="pad-glyph glyph inline-flex row-span-2"
           ><Icon name={sample.kind === 'loop' ? 'loop' : 'hit'} size={18} /></span
         >
-        <span class="pad-name">{editor.loading ? 'Loading' : sample.label}</span>
-        <span class="pad-kind">{sample.kind === 'loop' ? 'Loop' : 'Hit'}</span>
+        <span
+          class={`pad-name text-[0.82rem] font-bold ${editor.loading ? 'w-[72%] bg-audle-control text-transparent' : ''}`}
+          >{editor.loading ? 'Loading' : sample.label}</span
+        >
+        <span
+          class="pad-kind text-[0.68rem] font-bold uppercase tracking-[0.08em] text-audle-text-muted"
+          >{sample.kind === 'loop' ? 'Loop' : 'Hit'}</span
+        >
       </button>
     {/each}
   </div>
   {#if editor.loadingError}
-    <div class="load-error" role="alert">
+    <div
+      class="load-error flex items-center justify-between gap-2 text-[0.8rem] text-audle-text"
+      role="alert"
+    >
       <span
         >! {editor.failedSampleId ? sampleById(editor.failedSampleId)?.label : 'A daily sound'} failed
         to load.</span
       >
-      <button type="button" onclick={() => editor.retryAudio()}>Retry</button>
+      <button
+        class="min-h-11 cursor-pointer border border-audle-record-light bg-audle-record-surface px-3 text-audle-text"
+        type="button"
+        onclick={() => editor.retryAudio()}>Retry</button
+      >
     </div>
   {/if}
 </section>
 
 <style>
-  .pad-bank {
-    display: grid;
-    align-content: start;
-    gap: 10px;
-    min-inline-size: 0;
-    padding: 14px;
-    background: var(--audle-deck-raised);
-    box-shadow: var(--audle-deck-edge);
-  }
-  header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  header p {
-    margin: 0;
-    font-size: 0.7rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-  header span {
-    color: var(--audle-text-muted);
-    font-size: 0.75rem;
-  }
-  .pads {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
   .pad {
     --pad-light: var(--audle-one-shot-light);
+    --pad-surface: var(--audle-one-shot-surface);
     --pad-flash: 0.8 0.12 215;
-    position: relative;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    gap: 2px 8px;
-    min-block-size: 68px;
-    padding: 10px;
-    overflow: hidden;
-    border: 1px solid var(--pad-light);
-    background: var(--audle-one-shot-surface);
+    --pad-face: color-mix(in oklch, var(--pad-surface) 84%, oklch(var(--source)) 16%);
     /* The flash ring fades through --flash, which the audition motion drives. */
-    box-shadow:
-      inset 0 0 0 1px var(--pad-light),
-      inset 0 0 0 3px oklch(var(--pad-flash) / var(--flash, 0)),
+    --pad-shadow:
+      inset 0 0 0 1px var(--pad-light), inset 0 0 0 3px oklch(var(--pad-flash) / var(--flash, 0)),
       var(--audle-control-rest);
-    color: var(--audle-text);
-    cursor: pointer;
-    text-align: start;
-    touch-action: manipulation;
-    /* Transform belongs to the press motion; only colour transitions here. */
-    transition: background 100ms ease-out;
   }
   /* The audition bloom: a solid low-alpha fill clipped by the pad. */
   .pad::before {
@@ -137,87 +114,19 @@
   }
   .pad.loop {
     --pad-light: var(--audle-loop-light);
+    --pad-surface: var(--audle-loop-surface);
     --pad-flash: 0.74 0.16 302;
-    background: var(--audle-loop-surface);
-  }
-  .pad:hover:not(:disabled) {
-    background: var(--audle-control-hover);
   }
   .pad:global([data-pressed='true']) {
-    background: var(--audle-control-pressed);
-    box-shadow:
-      inset 0 0 0 1px var(--pad-light),
-      var(--audle-control-contact);
+    --pad-face: var(--audle-control-pressed);
+    --pad-shadow: inset 0 0 0 1px var(--pad-light), var(--audle-control-contact);
   }
   .pad.selected {
-    outline: 2px dashed var(--audle-selection-light);
+    outline: 2px dashed
+      color-mix(in oklch, var(--audle-selection-light) 35%, oklch(var(--source)) 65%);
     outline-offset: -5px;
   }
-  .pad:disabled {
-    background: var(--audle-disabled);
-    border-color: var(--audle-disabled);
-    color: var(--audle-disabled-ink);
-    cursor: not-allowed;
-  }
-  .pad.skeleton .pad-name {
-    inline-size: 72%;
-    color: transparent;
-    background: var(--audle-control);
-  }
   .pad-glyph {
-    display: inline-flex;
-    grid-row: span 2;
-    color: var(--audle-one-shot-light);
-  }
-  .loop .pad-glyph {
-    color: var(--audle-loop-light);
-  }
-  .pad-name {
-    font-size: 0.82rem;
-    font-weight: 700;
-  }
-  .pad-kind {
-    color: var(--audle-text-muted);
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  .load-error {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    color: var(--audle-text);
-    font-size: 0.8rem;
-  }
-  .load-error button {
-    min-block-size: 44px;
-    padding-inline: 12px;
-    border: 1px solid var(--audle-record-light);
-    background: var(--audle-record-surface);
-    color: var(--audle-text);
-    cursor: pointer;
-  }
-  /* On a phone the bank is a horizontal strip beneath the timeline, so it never pushes the lanes
-     two screens down. */
-  @media (max-width: 959px) {
-    .pads {
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      overscroll-behavior-x: contain;
-      padding-block-end: 4px;
-      scroll-snap-type: x proximity;
-    }
-    .pad {
-      flex: 0 0 148px;
-      scroll-snap-align: start;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .pad {
-      transition: none;
-    }
+    color: color-mix(in oklch, var(--pad-light) 40%, oklch(var(--source)) 60%);
   }
 </style>

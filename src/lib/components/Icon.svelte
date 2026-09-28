@@ -43,7 +43,7 @@
 
 <svg
   aria-hidden="true"
-  class="icon"
+  class="icon shrink-0 align-[-0.15em]"
   width={size}
   height={size}
   viewBox="0 0 16 16"
@@ -55,10 +55,3 @@
 >
   <path d={paths[name]} />
 </svg>
-
-<style>
-  .icon {
-    flex: none;
-    vertical-align: -0.15em;
-  }
-</style>

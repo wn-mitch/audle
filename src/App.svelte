@@ -311,24 +311,37 @@
   <meta name="description" content="A daily music-making instrument." />
 </svelte:head>
 
-<main class="app-shell">
-  <header class="deck-top">
-    <button class="wordmark" type="button" onclick={() => showMaker('play')}>Audle</button>
-    <p class="daily-readout">
+<main class="app-shell min-h-dvh bg-audle-page">
+  <header
+    class="deck-top grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 border-b border-audle-outline bg-audle-deck px-[clamp(14px,3vw,36px)] py-2 shadow-[var(--audle-deck-edge)] max-[621px]:min-h-[58px] max-[621px]:gap-2.5 max-[401px]:px-2.5"
+  >
+    <button
+      class="wordmark cursor-pointer border-0 bg-transparent p-0 text-2xl font-extrabold tracking-[-0.05em] text-audle-text max-[621px]:text-[1.3rem]"
+      type="button"
+      onclick={() => showMaker('play')}>Audle</button
+    >
+    <p
+      class="daily-readout m-0 grid min-w-0 gap-px text-[0.78rem] font-bold text-audle-text-muted max-[621px]:text-[0.7rem]"
+    >
       <span
+        class="max-[401px]:block max-[401px]:max-w-[16ch] max-[401px]:overflow-hidden max-[401px]:text-ellipsis max-[401px]:whitespace-nowrap"
         >Kit for {kitLabel} · {challenge.bpm} BPM · {challenge.key.root} {challenge.key.mode}</span
-      ><small>{countdown}</small>
+      ><small class="text-[0.72rem] font-normal text-audle-text-dim max-[621px]:hidden"
+        >{countdown}</small
+      >
     </p>
-    <nav aria-label="Audle views">
+    <nav class="flex shrink-0 items-center gap-1" aria-label="Audle views">
       <button
         aria-current={view === 'maker' && makerMode === 'play' ? 'page' : undefined}
         class:current={view === 'maker' && makerMode === 'play'}
+        class="min-h-11 cursor-pointer border-0 border-b-2 border-transparent bg-transparent px-3 font-bold text-audle-text-muted aria-[current=page]:border-audle-text aria-[current=page]:text-audle-text max-[621px]:px-2 max-[621px]:text-[0.85rem]"
         type="button"
         onclick={() => showMaker('play')}>Play</button
       >
       <button
         aria-current={view === 'maker' && makerMode === 'arrange' ? 'page' : undefined}
         class:current={view === 'maker' && makerMode === 'arrange'}
+        class="min-h-11 cursor-pointer border-0 border-b-2 border-transparent bg-transparent px-3 font-bold text-audle-text-muted aria-[current=page]:border-audle-text aria-[current=page]:text-audle-text max-[621px]:px-2 max-[621px]:text-[0.85rem]"
         type="button"
         onclick={() => showMaker('arrange')}>Arrange</button
       >
@@ -336,7 +349,7 @@
         aria-label="Help"
         aria-current={view === 'tutorial' ? 'page' : undefined}
         class:current={view === 'tutorial'}
-        class="help"
+        class="help grid size-11 cursor-pointer place-items-center border-0 border-b-2 border-transparent bg-transparent p-0 font-bold text-audle-text-muted aria-[current=page]:border-audle-text aria-[current=page]:text-audle-text ms-1"
         title="Play with a ready-made beat"
         type="button"
         onclick={startTutorial}><Icon name="help" size={18} /></button
@@ -360,34 +373,53 @@
         />
       </div>
     {:else}
-      <section class="maker-workspace" in:rise>
+      <section
+        class="maker-workspace grid grid-cols-[300px_minmax(0,1fr)_260px] gap-2.5 p-2.5 max-[960px]:grid-cols-[minmax(0,1fr)] max-[960px]:[&>:first-child]:order-1 max-[960px]:[&>:last-child]:order-2 max-[401px]:gap-1.5 max-[401px]:p-1.5"
+        in:rise
+      >
         <PadBank {challenge} {editor} />
-        <div class="arrangement">
+        <div
+          class="arrangement relative grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-2.5 max-[960px]:order-0"
+        >
           {#if !makerHasClips && !editor.loading}
-            <div class="empty-arrangement">
-              <strong>Tap any sound.</strong><span
+            <div
+              class="empty-arrangement grid justify-items-start gap-[7px] border border-audle-outline bg-audle-deck p-4 shadow-[var(--audle-deck-edge)]"
+            >
+              <strong>Tap any sound.</strong><span class="text-[0.82rem] text-audle-text-muted"
                 >Tap a lane to place a sound, let Jev jam a loop, or start from something made.</span
               >
-              <div class="empty-actions">
+              <div class="empty-actions flex flex-wrap gap-2">
                 <button
+                  class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-loop-light bg-audle-loop-surface px-3 font-bold text-audle-text"
                   disabled={editor.jamming}
                   type="button"
                   use:press
                   onclick={() => void editor.jamWithJev('')}
                   ><Icon name="spark" /> Jam with Jev</button
                 ><button
+                  class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-loop-light bg-audle-loop-surface px-3 font-bold text-audle-text"
                   type="button"
                   use:press
                   onclick={() => editor.importComposition(starterForChallenge(challenge))}
                   >Remix today’s starter</button
-                ><button type="button" class="quiet" use:press onclick={startTutorial}
-                  >Try a ready-made beat</button
+                ><button
+                  class="quiet inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-outline bg-audle-control px-3 font-bold text-audle-text"
+                  type="button"
+                  use:press
+                  onclick={startTutorial}>Try a ready-made beat</button
                 >
               </div>
-              <div class="examples" role="group" aria-label="Hear an example">
-                <span>Hear an example</span>
+              <div
+                class="examples mt-1.5 flex w-full flex-wrap items-center gap-1.5 border-t border-audle-outline-subtle pt-2.5"
+                role="group"
+                aria-label="Hear an example"
+              >
+                <span class="mr-1">Hear an example</span>
                 {#each examples as example, index (index)}
-                  <button type="button" onclick={() => openShared(example)}
+                  <button
+                    class="inline-flex min-h-9 cursor-pointer items-center gap-2 border border-audle-outline-subtle bg-transparent px-2.5 text-[0.8rem] font-bold text-audle-text-muted hover:text-audle-accent"
+                    type="button"
+                    onclick={() => openShared(example)}
                     ><Icon name="play" size={12} />
                     {EXAMPLE_NAMES[index] ?? `Example ${index + 1}`}</button
                   >
@@ -397,7 +429,9 @@
           {/if}
           <JevJam {editor} />
           <TimelineEditor {editor} />
-          <div class="dock">
+          <div
+            class="dock sticky z-10 grid border-t border-audle-outline bg-audle-deck [inset-block-end:env(safe-area-inset-bottom,0px)]"
+          >
             <SelectionActions {editor} />
             <TransportBar {editor} onShare={openShare} />
           </div>
@@ -411,11 +445,18 @@
       onShare={() => void shareComposition(tutorial!.composition)}
       onFinish={finishTutorial}
     />
-    <section class="maker-workspace tutorial-workspace">
+    <section
+      class="maker-workspace tutorial-workspace grid grid-cols-[300px_minmax(0,1fr)_260px] gap-2.5 p-2.5 max-[960px]:grid-cols-[minmax(0,1fr)] max-[960px]:[&>:first-child]:order-1 max-[960px]:[&>:last-child]:order-2 max-[960px]:pt-0 max-[401px]:gap-1.5 max-[401px]:p-1.5"
+      in:rise
+    >
       <PadBank {challenge} editor={tutorial} />
-      <div class="arrangement">
+      <div
+        class="arrangement relative grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-2.5 max-[960px]:order-0"
+      >
         <JevJam editor={tutorial} /><TimelineEditor editor={tutorial} />
-        <div class="dock">
+        <div
+          class="dock sticky z-10 grid border-t border-audle-outline bg-audle-deck [inset-block-end:env(safe-area-inset-bottom,0px)]"
+        >
           <SelectionActions editor={tutorial} />
           <TransportBar
             editor={tutorial}
@@ -440,10 +481,19 @@
         />
       </div>
     {:else}
-      <section class="shared-error" role="alert">
-        <h1>That link did not open.</h1>
-        <p>{sharedError ?? 'This Audle link is damaged or from a newer version'}</p>
-        <button type="button" onclick={leaveShared}>Back to Play</button>
+      <section
+        class="shared-error mx-auto my-[12vh] w-[min(100%_-_32px,640px)] border border-audle-record-light bg-audle-deck-raised p-7 shadow-[inset_0_0_0_1px_var(--audle-record-light)]"
+        role="alert"
+      >
+        <h1 class="mt-0 text-[1.6rem]">That link did not open.</h1>
+        <p class="text-audle-text-muted">
+          {sharedError ?? 'This Audle link is damaged or from a newer version'}
+        </p>
+        <button
+          class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-loop-light bg-audle-loop-surface px-3 font-bold text-audle-text"
+          type="button"
+          onclick={leaveShared}>Back to Play</button
+        >
       </section>
     {/if}
   {/if}
@@ -459,221 +509,3 @@
     onOpen={openShared}
   />
 </main>
-
-<style>
-  .app-shell {
-    min-block-size: 100dvh;
-    background: var(--audle-page);
-  }
-  .deck-top {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 16px;
-    min-block-size: 64px;
-    padding: 8px clamp(14px, 3vw, 36px);
-    background: var(--audle-deck);
-    border-block-end: 1px solid var(--audle-outline);
-    box-shadow: var(--audle-deck-edge);
-  }
-  .wordmark {
-    border: 0;
-    padding: 0;
-    background: transparent;
-    color: var(--audle-text);
-    cursor: pointer;
-    font-size: 1.5rem;
-    font-weight: 800;
-    letter-spacing: -0.05em;
-  }
-  .daily-readout {
-    display: grid;
-    gap: 1px;
-    margin: 0;
-    color: var(--audle-text-muted);
-    font-size: 0.78rem;
-    font-weight: 700;
-  }
-  .daily-readout small {
-    color: var(--audle-text-dim);
-    font-size: 0.72rem;
-    font-weight: 400;
-  }
-  nav {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  nav button {
-    min-block-size: 44px;
-    padding-inline: 12px;
-    border: 0;
-    border-block-end: 2px solid transparent;
-    background: transparent;
-    color: var(--audle-text-muted);
-    cursor: pointer;
-    font-weight: 700;
-  }
-  nav button.current {
-    color: var(--audle-text);
-    border-color: var(--audle-text);
-  }
-  nav .help {
-    display: grid;
-    place-items: center;
-    inline-size: 44px;
-    padding: 0;
-    margin-inline-start: 4px;
-  }
-  .maker-workspace {
-    display: grid;
-    grid-template-columns: 300px minmax(0, 1fr) 260px;
-    gap: 10px;
-    padding: 10px;
-  }
-  .arrangement {
-    position: relative;
-    display: grid;
-    align-content: start;
-    gap: 10px;
-    min-inline-size: 0;
-  }
-  /* Selection actions and transport stay in reach below sixteen lanes at every width. */
-  .dock {
-    position: sticky;
-    inset-block-end: env(safe-area-inset-bottom, 0px);
-    z-index: 10;
-    display: grid;
-    background: var(--audle-deck);
-    border-block-start: 1px solid var(--audle-outline);
-  }
-  .empty-arrangement {
-    display: grid;
-    justify-items: start;
-    gap: 7px;
-    padding: 16px;
-    background: var(--audle-deck);
-    border: 1px solid var(--audle-outline);
-    box-shadow: var(--audle-deck-edge);
-  }
-  .empty-arrangement span {
-    color: var(--audle-text-muted);
-    font-size: 0.82rem;
-  }
-  .empty-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .empty-arrangement button,
-  .shared-error button {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-block-size: 44px;
-    padding-inline: 12px;
-    border: 1px solid var(--audle-loop-light);
-    background: var(--audle-loop-surface);
-    color: var(--audle-text);
-    cursor: pointer;
-    font-weight: 700;
-  }
-  .empty-arrangement .quiet {
-    border-color: var(--audle-outline);
-    background: var(--audle-control);
-  }
-  .examples {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    margin-block-start: 6px;
-    padding-block-start: 10px;
-    border-block-start: 1px solid var(--audle-outline-subtle);
-    inline-size: 100%;
-  }
-  .examples > span {
-    margin-inline-end: 4px;
-  }
-  .empty-arrangement .examples button {
-    min-block-size: 36px;
-    padding-inline: 10px;
-    border-color: var(--audle-outline-subtle);
-    background: transparent;
-    color: var(--audle-text-muted);
-    font-size: 0.8rem;
-  }
-  .empty-arrangement .examples button:hover {
-    color: var(--audle-accent);
-  }
-  .shared-error {
-    inline-size: min(100% - 32px, 640px);
-    margin: 12vh auto;
-    padding: 28px;
-    background: var(--audle-deck-raised);
-    border: 1px solid var(--audle-record-light);
-    box-shadow: inset 0 0 0 1px var(--audle-record-light);
-  }
-  .shared-error h1 {
-    margin-block-start: 0;
-    font-size: 1.6rem;
-  }
-  .shared-error p {
-    color: var(--audle-text-muted);
-  }
-  @media (max-width: 959px) {
-    .maker-workspace {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    /* On a phone the timeline comes first, so a tap on a pad lands where the maker can see it. */
-    .arrangement {
-      order: 0;
-    }
-    /* The pad bank and tuning deck are other components' roots, so they need global selectors. */
-    .maker-workspace > :global(:first-child) {
-      order: 1;
-    }
-    .maker-workspace > :global(:last-child) {
-      order: 2;
-    }
-    .tutorial-workspace {
-      padding-block-start: 0;
-    }
-  }
-  @media (max-width: 620px) {
-    .deck-top {
-      grid-template-columns: auto 1fr auto;
-      gap: 10px;
-      min-block-size: 58px;
-    }
-    .wordmark {
-      font-size: 1.3rem;
-    }
-    .daily-readout {
-      font-size: 0.7rem;
-    }
-    .daily-readout small {
-      display: none;
-    }
-    nav button {
-      padding-inline: 8px;
-      font-size: 0.85rem;
-    }
-  }
-  @media (max-width: 400px) {
-    .deck-top {
-      padding-inline: 10px;
-    }
-    .daily-readout span {
-      display: block;
-      max-inline-size: 16ch;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .maker-workspace {
-      padding: 6px;
-      gap: 6px;
-    }
-  }
-</style>

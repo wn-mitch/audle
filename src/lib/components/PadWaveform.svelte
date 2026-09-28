@@ -87,39 +87,20 @@
   });
 </script>
 
-<span class="pad-waveform" aria-hidden="true">
-  <span class="wave-halo" bind:this={halo}></span>
-  <canvas bind:this={canvas} width={SIZE} height={SIZE}></canvas>
+<span
+  class="pad-waveform pointer-events-none absolute top-1/2 left-1/2 size-[60px] -translate-1/2 max-[540px]:size-12"
+  aria-hidden="true"
+>
+  <span
+    class="wave-halo absolute inset-[6px] rounded-full border border-current opacity-0"
+    bind:this={halo}
+  ></span>
+  <canvas class="block size-full text-inherit" bind:this={canvas} width={SIZE} height={SIZE}
+  ></canvas>
 </span>
 
 <style>
   .pad-waveform {
-    position: absolute;
-    inset-block-start: 50%;
-    inset-inline-start: 50%;
-    inline-size: 60px;
-    block-size: 60px;
     color: oklch(var(--source));
-    pointer-events: none;
-    transform: translate(-50%, -50%);
-  }
-  canvas {
-    display: block;
-    inline-size: 100%;
-    block-size: 100%;
-    color: inherit;
-  }
-  .wave-halo {
-    position: absolute;
-    inset: 6px;
-    border: 1px solid currentColor;
-    border-radius: 50%;
-    opacity: 0;
-  }
-  @media (max-width: 540px) {
-    .pad-waveform {
-      inline-size: 48px;
-      block-size: 48px;
-    }
   }
 </style>

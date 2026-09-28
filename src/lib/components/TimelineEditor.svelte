@@ -238,23 +238,36 @@
   };
 </script>
 
-<section aria-label="Timeline editor" class:dragging class="timeline">
-  <header class="timeline-head">
+<section
+  aria-label="Timeline editor"
+  class="timeline grid min-h-[360px] overflow-hidden bg-audle-deck-raised shadow-[var(--audle-deck-edge)] max-[959px]:min-h-[300px]"
+  class:dragging
+>
+  <header
+    class="timeline-head flex min-h-[58px] items-center justify-between gap-3 border-b border-audle-outline px-3.5 py-2.5"
+  >
     <div>
-      <p>Arrange</p>
-      <strong
+      <p
+        class="m-0 mb-0.5 text-[0.7rem] font-extrabold uppercase tracking-[0.1em] text-audle-text-muted"
+      >
+        Arrange
+      </p>
+      <strong class="text-[0.85rem]"
         >{editor.composition.bars} bar{editor.composition.bars === 1 ? '' : 's'} · tap a lane to add,
         tap a clip twice to remove, drag to move</strong
       >
     </div>
     <button
       aria-pressed={selectMode}
+      class="min-h-11 min-w-[72px] cursor-pointer border border-audle-outline bg-audle-control font-bold shadow-[var(--audle-control-rest)] [&.active]:bg-audle-selection-surface [&.active]:shadow-[inset_0_0_0_1px_var(--audle-selection-light),var(--audle-control-contact)]"
       class:active={selectMode}
       type="button"
       onclick={() => (selectMode = !selectMode)}>Select</button
     >
   </header>
-  <div class="timeline-scroll">
+  <div
+    class="timeline-scroll min-h-0 overflow-auto overscroll-x-contain overscroll-y-auto max-[959px]:max-h-[54vh]"
+  >
     <div
       aria-label="Timeline selection surface"
       bind:this={grid}
@@ -270,29 +283,43 @@
       onpointerup={finishMarquee}
       onpointercancel={finishMarquee}
     >
-      <div class="ruler" style:--bars={editor.composition.bars}>
-        <span class="sticky">Track</span>
+      <div
+        class="ruler sticky top-0 z-[5] grid min-h-9 cursor-pointer border-b border-audle-grid-major bg-audle-deck"
+        style:--bars={editor.composition.bars}
+      >
+        <span
+          class="sticky left-0 z-[2] grid place-items-center justify-items-start border-r border-audle-grid-major bg-audle-deck px-2.5 font-mono text-[0.68rem] text-audle-text-muted"
+          >Track</span
+        >
         {#each Array.from({ length: editor.composition.bars }, (_, index) => index + 1) as bar (bar)}
-          <span>Bar {bar}</span>
+          <span
+            class="grid place-items-center justify-items-start border-r border-audle-grid-major px-2.5 font-mono text-[0.68rem] text-audle-text-muted"
+            >Bar {bar}</span
+          >
         {/each}
         <i class="playhead-ruler"></i>
       </div>
       {#each editor.composition.tracks as track, trackIndex (track.id)}
         {@const loopLane = sampleById(track.sampleId)?.kind === 'loop'}
-        <div class="lane">
+        {@const sourceIndex = editor.challenge.sampleIds.indexOf(track.sampleId)}
+        <div
+          class="lane grid min-h-14"
+          class:source-known={sourceIndex >= 0}
+          style:--source={sourceIndex >= 0 ? `var(--audle-source-${sourceIndex + 1})` : undefined}
+        >
           <TrackHeader {editor} {track} index={trackIndex} />
           <div
             aria-label={`${track.label} lane: click to ${loopLane ? 'toggle a loop in that bar' : 'add a hit'}`}
-            class="lane-content"
+            class="lane-content relative min-h-14 cursor-crosshair overflow-hidden bg-audle-well shadow-[inset_0_2px_5px_oklch(0.025_0.007_255_/_0.88),inset_0_1px_0_oklch(0.57_0.02_255_/_0.14)] [container-type:inline-size]"
             data-track-id={track.id}
             role="group"
           >
             {#each steps as step (step)}
               <i
                 aria-hidden="true"
+                class="grid-line pointer-events-none absolute inset-y-0 left-[var(--step)] w-px bg-audle-grid-minor [&.quarter]:bg-audle-outline-subtle [&.bar]:w-0.5 [&.bar]:bg-audle-grid-major"
                 class:bar={step % 16 === 0}
                 class:quarter={step % 4 === 0}
-                class="grid-line"
                 style={`--step: ${(step / steps.length) * 100}%`}
               ></i>
             {/each}
@@ -300,9 +327,9 @@
               <div
                 aria-label={`${track.label}, ${clip.kind} at tick ${clip.startTick}${clip.kind === 'hit' ? `, roll times ${clip.ratchet}` : ''}`}
                 aria-pressed={editor.selectedClipIds.includes(clip.id)}
+                class="clip absolute z-[2] inset-y-2 left-[var(--start)] flex min-w-4 w-[max(var(--width),16px)] items-center gap-1 overflow-hidden border border-audle-loop-light bg-audle-loop-surface text-audle-text shadow-[inset_0_0_0_1px_var(--audle-loop-light)] cursor-grab [&.hit]:justify-center [&.hit]:min-w-[22px] [&.hit]:w-[22px] [&.hit]:border-audle-one-shot-light [&.hit]:bg-audle-one-shot-surface [&.hit]:shadow-[inset_0_0_0_1px_var(--audle-one-shot-light)] [&.selected]:z-[3] [&.selected]:outline-2 [&.selected]:outline-dashed [&.selected]:outline-audle-selection-light [&.selected]:outline-offset-2 [&.selected]:shadow-[inset_0_0_0_1px_var(--audle-selection-light)] [&.hit_.clip-copy]:hidden"
                 class:hit={clip.kind === 'hit'}
                 class:selected={editor.selectedClipIds.includes(clip.id)}
-                class="clip"
                 data-clip-id={clip.id}
                 role="button"
                 style={`--start: ${(clip.startTick / totalTicks) * 100}%; --width: ${((clip.kind === 'loop' ? clip.lengthTicks : TICKS_PER_SIXTEENTH) / totalTicks) * 100}%; ${dragStyle(clip.id)}`}
@@ -337,13 +364,27 @@
                 }}
               >
                 {#if clip.kind === 'loop'}
-                  <span aria-hidden="true" class="waveform"><i></i><i></i><i></i></span>
-                  <span class="clip-copy">Loop</span>
+                  <span aria-hidden="true" class="waveform ml-1 inline-flex items-center gap-0.5"
+                    ><i
+                      class="block size-[7px] rounded-t-[7px] border-[1.5px] border-b-0 border-audle-loop-light"
+                    ></i><i
+                      class="block size-[7px] rounded-t-[7px] border-[1.5px] border-b-0 border-audle-loop-light"
+                    ></i><i
+                      class="block size-[7px] rounded-t-[7px] border-[1.5px] border-b-0 border-audle-loop-light"
+                    ></i></span
+                  >
+                  <span class="clip-copy overflow-hidden whitespace-nowrap font-mono text-[0.68rem]"
+                    >Loop</span
+                  >
                 {:else}
-                  <span aria-hidden="true" class="strikes"
+                  <span
+                    aria-hidden="true"
+                    class="strikes text-[0.8rem] font-extrabold tracking-[1px] text-audle-one-shot-light"
                     >{#each Array.from({ length: clip.ratchet }, (_, index) => index) as strike (strike)}|{/each}</span
                   >
-                  <span class="clip-copy">{clip.ratchet === 1 ? 'Hit' : `×${clip.ratchet}`}</span>
+                  <span class="clip-copy overflow-hidden whitespace-nowrap font-mono text-[0.68rem]"
+                    >{clip.ratchet === 1 ? 'Hit' : `×${clip.ratchet}`}</span
+                  >
                 {/if}
               </div>
               {#if clip.kind === 'loop'}
@@ -352,7 +393,7 @@
                   aria-valuemax={totalTicks - clip.startTick}
                   aria-valuemin={TICKS_PER_SIXTEENTH}
                   aria-valuenow={clip.lengthTicks}
-                  class="resize"
+                  class="resize absolute z-[4] inset-y-2 left-[calc(var(--edge)_-_6px)] w-3 cursor-ew-resize border-l border-audle-loop-light touch-none"
                   role="slider"
                   style={`--edge: ${((clip.startTick + clip.lengthTicks) / totalTicks) * 100}%; ${dragStyle(clip.id)}`}
                   tabindex="0"
@@ -393,207 +434,56 @@
 </section>
 
 <style>
-  .timeline {
-    display: grid;
-    min-block-size: 360px;
-    overflow: hidden;
-    background: var(--audle-deck-raised);
-    box-shadow: var(--audle-deck-edge);
-  }
-  .timeline-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    min-block-size: 58px;
-    padding: 10px 14px;
-    border-block-end: 1px solid var(--audle-outline);
-  }
-  .timeline-head p {
-    margin: 0 0 2px;
-    color: var(--audle-text-muted);
-    font-size: 0.7rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-  .timeline-head strong {
-    font-size: 0.85rem;
-  }
-  .timeline-head button {
-    min-inline-size: 72px;
-    min-block-size: 44px;
-    border: 1px solid var(--audle-outline);
-    background: var(--audle-control);
-    box-shadow: var(--audle-control-rest);
-    cursor: pointer;
-    font-weight: 700;
-  }
-  .timeline-head button.active {
-    background: var(--audle-selection-surface);
-    box-shadow:
-      inset 0 0 0 1px var(--audle-selection-light),
-      var(--audle-control-contact);
-  }
-  .timeline-scroll {
-    min-block-size: 0;
-    overflow: auto;
-    overscroll-behavior: contain;
-  }
-  .grid {
+  .grid[role='region'] {
     --header-w: 172px;
     --bar-min: 260px;
+    display: block;
     position: relative;
     min-inline-size: max(100%, calc(var(--header-w) + var(--bar-min) * var(--bars, 1)));
   }
-  /* Desktop fits a four-bar loop without scrolling: 120px is still 7.5px per sixteenth. */
+
   @media (min-width: 960px) {
-    .grid {
+    .grid[role='region'] {
       --bar-min: 120px;
     }
   }
+
   .ruler {
-    position: sticky;
-    inset-block-start: 0;
-    z-index: 5;
-    display: grid;
     grid-template-columns: var(--header-w) repeat(var(--bars), minmax(var(--bar-min), 1fr));
-    cursor: pointer;
-    min-block-size: 36px;
-    background: var(--audle-deck);
-    border-block-end: 1px solid var(--audle-grid-major);
   }
-  .ruler span {
-    display: grid;
-    place-items: center start;
-    padding-inline: 10px;
-    border-inline-end: 1px solid var(--audle-grid-major);
-    color: var(--audle-text-muted);
-    font-family: ui-monospace, monospace;
-    font-size: 0.68rem;
-  }
-  .ruler .sticky {
-    position: sticky;
-    inset-inline-start: 0;
-    z-index: 2;
-    background: var(--audle-deck);
-  }
+
   .lane {
-    display: grid;
     grid-template-columns: var(--header-w) minmax(calc(var(--bar-min) * var(--bars, 1)), 1fr);
-    min-block-size: 56px;
   }
-  .lane-content {
-    position: relative;
-    cursor: crosshair;
-    min-block-size: 56px;
-    overflow: hidden;
-    background: var(--audle-well);
-    box-shadow:
-      inset 0 2px 5px oklch(0.025 0.007 255 / 0.88),
-      inset 0 1px 0 oklch(0.57 0.02 255 / 0.14);
-  }
-  .grid-line {
-    position: absolute;
-    inset-block: 0;
-    inset-inline-start: var(--step);
-    inline-size: 1px;
-    background: var(--audle-grid-minor);
-    pointer-events: none;
-  }
-  .grid-line.quarter {
-    background: var(--audle-outline-subtle);
-  }
-  .grid-line.bar {
-    inline-size: 2px;
-    background: var(--audle-grid-major);
-  }
-  .clip {
-    position: absolute;
-    z-index: 2;
-    inset-block: 8px;
-    inset-inline-start: var(--start);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    inline-size: max(var(--width), 16px);
-    min-inline-size: 16px;
-    overflow: hidden;
-    border: 1px solid var(--audle-loop-light);
-    background: var(--audle-loop-surface);
-    box-shadow: inset 0 0 0 1px var(--audle-loop-light);
-    color: var(--audle-text);
-    cursor: grab;
-    /* --drag previews a move as a percentage of the lane, which is the size container below. */
+
+  /* --drag previews a move as a percentage of the lane, which is the size container below. */
+  .clip,
+  .resize {
     translate: calc(var(--drag, 0%) / 100% * 100cqi) 0;
   }
-  .lane-content {
-    container-type: inline-size;
-  }
+
   .timeline.dragging .clip {
     cursor: grabbing;
   }
-  /* A hit is a fixed pill wide enough to read and grab, whatever the zoom; its left edge still
-   * marks the tick. The strikes show the roll count. */
-  .clip.hit {
-    justify-content: center;
-    inline-size: 22px;
-    min-inline-size: 22px;
-    border-color: var(--audle-one-shot-light);
-    background: var(--audle-one-shot-surface);
-    box-shadow: inset 0 0 0 1px var(--audle-one-shot-light);
-  }
+
   .clip.hit::before {
     content: '';
     position: absolute;
     inset: -8px -4px;
   }
-  .clip.hit .clip-copy {
-    display: none;
+
+  .lane.source-known .clip:not(.selected) {
+    box-shadow:
+      inset 0 0 0 1px oklch(var(--source) / 0.42),
+      inset 0 0 0 2px var(--audle-loop-light);
   }
-  .clip.selected {
-    z-index: 3;
-    outline: 2px dashed var(--audle-selection-light);
-    outline-offset: 2px;
-    box-shadow: inset 0 0 0 1px var(--audle-selection-light);
+
+  .lane.source-known .clip.hit:not(.selected) {
+    box-shadow:
+      inset 0 0 0 1px oklch(var(--source) / 0.42),
+      inset 0 0 0 2px var(--audle-one-shot-light);
   }
-  .resize {
-    position: absolute;
-    z-index: 4;
-    inset-block: 8px;
-    inset-inline-start: calc(var(--edge) - 6px);
-    inline-size: 12px;
-    border-inline-start: 1px solid var(--audle-loop-light);
-    cursor: ew-resize;
-    touch-action: none;
-    translate: calc(var(--drag, 0%) / 100% * 100cqi) 0;
-  }
-  .waveform {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    margin-inline-start: 4px;
-  }
-  .waveform i {
-    display: block;
-    inline-size: 7px;
-    block-size: 7px;
-    border: 1.5px solid var(--audle-loop-light);
-    border-block-end: 0;
-    border-radius: 7px 7px 0 0;
-  }
-  .hit .strikes {
-    color: var(--audle-one-shot-light);
-    font-weight: 800;
-    font-size: 0.8rem;
-    letter-spacing: 1px;
-  }
-  .clip-copy {
-    overflow: hidden;
-    font-family: ui-monospace, monospace;
-    font-size: 0.68rem;
-    white-space: nowrap;
-  }
+
   .playhead,
   .playhead-ruler {
     position: absolute;
@@ -605,10 +495,12 @@
     background: var(--audle-playback-light);
     pointer-events: none;
   }
+
   .playhead-ruler {
     z-index: 6;
     inset-inline-start: calc(var(--header-w) + (100% - var(--header-w)) * var(--playhead-ratio, 0));
   }
+
   .ghost {
     position: absolute;
     z-index: 1;
@@ -619,9 +511,11 @@
     opacity: 0.45;
     pointer-events: none;
   }
+
   .ghost.loop {
     border-color: var(--audle-loop-light);
   }
+
   .marquee {
     position: absolute;
     z-index: 8;
@@ -629,15 +523,8 @@
     background: oklch(0.25 0.06 28 / 0.18);
     pointer-events: none;
   }
-  .timeline.dragging .grid {
+
+  .timeline.dragging .grid[role='region'] {
     touch-action: none;
-  }
-  @media (max-width: 959px) {
-    .timeline {
-      min-block-size: 300px;
-    }
-    .timeline-scroll {
-      max-block-size: 54vh;
-    }
   }
 </style>

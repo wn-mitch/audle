@@ -300,6 +300,7 @@ test('dial gestures persist independently and a pointer drag is undone as one co
   await expect(level).toHaveAttribute('aria-valuenow', '0.5');
   // Stop queued pad changes so they cannot land on a bar boundary after the dial drag.
   await page.getByRole('button', { name: 'Stop loop' }).click();
+  await level.scrollIntoViewIfNeeded();
 
   const box = (await level.boundingBox())!;
   await page.mouse.move(box.x + 2, box.y + box.height / 2);
@@ -349,7 +350,7 @@ test('the Arrange playhead sweeps between transport snapshots', async ({ page })
   // A sixteenth at 140 BPM lasts about 107ms, so six frames of stepping show at most two
   // positions; a frame-rate sweep shows a new one nearly every frame.
   const distinct = await page.evaluate(async () => {
-    const grid = document.querySelector<HTMLElement>('.grid')!;
+    const grid = document.querySelector<HTMLElement>('.timeline .grid')!;
     const seen = new Set<string>();
     for (let frame = 0; frame < 6; frame += 1) {
       seen.add(grid.style.getPropertyValue('--playhead-ratio'));
@@ -362,7 +363,9 @@ test('the Arrange playhead sweeps between transport snapshots', async ({ page })
   await expect
     .poll(() =>
       page.evaluate(() =>
-        document.querySelector<HTMLElement>('.grid')!.style.getPropertyValue('--playhead-ratio'),
+        document
+          .querySelector<HTMLElement>('.timeline .grid')!
+          .style.getPropertyValue('--playhead-ratio'),
       ),
     )
     .toBe('0');
@@ -376,7 +379,7 @@ test('under reduced motion the Arrange playhead steps with the transport', async
   await page.getByRole('button', { name: 'Play composition' }).click();
   await expect.poll(() => transportTick(page)).toBeGreaterThan(0);
   const distinct = await page.evaluate(async () => {
-    const grid = document.querySelector<HTMLElement>('.grid')!;
+    const grid = document.querySelector<HTMLElement>('.timeline .grid')!;
     const seen = new Set<string>();
     for (let frame = 0; frame < 4; frame += 1) {
       seen.add(grid.style.getPropertyValue('--playhead-ratio'));

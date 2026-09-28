@@ -167,3 +167,92 @@ test('the phone Play field never overflows horizontally', async ({ page }, testI
     )
     .toBe(true);
 });
+
+test('Play grows into a centered widescreen deck without losing laptop fit', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+  await waitForPlayDeck(page);
+  await expectCompactDeckToFit(page);
+  const laptopBank = (await page.locator('.objects').boundingBox())!.width;
+
+  await page.setViewportSize({ width: 1568, height: 1174 });
+  const frame = (await page.locator('.stage-frame').boundingBox())!;
+  const bank = (await page.locator('.objects').boundingBox())!;
+  expect(bank.width).toBeGreaterThan(laptopBank);
+  expect(bank.width).toBeLessThanOrEqual(600);
+  expect(Math.abs(frame.y - (64 + (1174 - 64 - frame.height) / 2))).toBeLessThan(3);
+});
+
+test('phone Play keeps the 4 by 4 field, footer, and family labels ahead of controls', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForPlayDeck(page);
+  await expect(page.locator('.stage-topline')).toContainText('Tap a pad to build a loop');
+  for (const [width, height] of [
+    [390, 844],
+    [320, 700],
+  ]) {
+    await page.setViewportSize({ width, height });
+    const geometry = await page.evaluate(() => {
+      const box = (selector: string) =>
+        document.querySelector<HTMLElement>(selector)!.getBoundingClientRect();
+      const pads = [...document.querySelectorAll<HTMLElement>('.sound-object')];
+      const texture = pads.find((pad) => pad.textContent?.toLowerCase().includes('texture'))!;
+      const role = [...texture.querySelectorAll('span')].find(
+        (span) => span.textContent === 'texture',
+      )!;
+      return {
+        bank: box('.objects').toJSON(),
+        footer: box('.play-footer').toJSON(),
+        controls: box('.play-controls').toJSON(),
+        lastPad: pads.at(-1)!.getBoundingClientRect().toJSON(),
+        role: role.getBoundingClientRect().toJSON(),
+        texture: texture.getBoundingClientRect().toJSON(),
+        widths: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      };
+    });
+    expect(geometry.bank.width / geometry.bank.height).toBeCloseTo(1, 1);
+    expect(geometry.footer.y).toBeGreaterThanOrEqual(geometry.bank.bottom);
+    expect(geometry.controls.y).toBeGreaterThanOrEqual(geometry.footer.bottom);
+    expect(geometry.footer.y - geometry.lastPad.bottom).toBeGreaterThanOrEqual(22);
+    expect(geometry.role.right).toBeLessThanOrEqual(geometry.texture.right - 3);
+    expect(geometry.widths).toBeLessThanOrEqual(width);
+    await expect(page.locator('.hit-timeline .barline')).toHaveCount(0);
+  }
+});
+
+test('one dial reset preserves another dial and can be undone from Arrange', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+  await waitForPlayDeck(page);
+  const level = page.getByRole('slider', { name: 'Level' });
+  const pan = page.getByRole('slider', { name: 'Pan' });
+  const reset = page.getByRole('button', { name: 'Reset Level' });
+  await expect(reset).toBeDisabled();
+  await level.focus();
+  await level.press('ArrowRight');
+  await pan.focus();
+  await pan.press('ArrowRight');
+  await expect(reset).toBeEnabled();
+  const changedLevel = await level.inputValue();
+  const changedPan = await pan.inputValue();
+  await reset.click();
+  await expect(level).toHaveValue('0');
+  await expect(pan).toHaveValue(changedPan);
+  await expect(reset).toBeDisabled();
+
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(level).toHaveValue(changedLevel);
+  await expect(pan).toHaveValue(changedPan);
+
+  await page.locator('.sound-object').first().click();
+  await page.getByRole('button', { name: 'Record a take' }).click();
+  await expect(level).toBeDisabled();
+  await expect(reset).toBeDisabled();
+  await page.getByRole('button', { name: 'Cancel count-in' }).click();
+  expect((await reset.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  expect((await level.boundingBox())!.height).toBeGreaterThanOrEqual(48);
+});
