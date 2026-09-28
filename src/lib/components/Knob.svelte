@@ -10,6 +10,7 @@
     onChange,
     onEnd,
     dial = false,
+    detail,
     disabled = false,
   }: {
     label: string;
@@ -22,6 +23,7 @@
     onChange: (value: number) => void;
     onEnd: () => void;
     dial?: boolean;
+    detail?: string;
     disabled?: boolean;
   } = $props();
 
@@ -72,6 +74,7 @@
   {/if}
   <span class="label">{label}</span>
   <output>{valueText}</output>
+  {#if detail}<small class="detail">{detail}</small>{/if}
   <input
     aria-label={label}
     aria-valuemax={max}
@@ -84,7 +87,7 @@
     type="range"
     {value}
     onpointerdown={beginGesture}
-    onpointerup={() => setTimeout(endGesture, 0)}
+    onpointerup={endGesture}
     onpointercancel={endGesture}
     onblur={endGesture}
     onkeydown={(event) => {
@@ -143,11 +146,12 @@
   }
 
   .knob.dial {
-    grid-template-rows: 56px auto;
-    gap: 4px 8px;
-    justify-items: stretch;
-    min-block-size: 112px;
-    padding: 0 5px;
+    grid-template-columns: 48px minmax(0, 1fr);
+    grid-template-rows: repeat(3, auto);
+    align-content: center;
+    column-gap: 8px;
+    min-block-size: 66px;
+    padding: 0 2px;
     background: transparent;
     box-shadow: none;
   }
@@ -160,12 +164,12 @@
     color: oklch(var(--source, var(--audle-source-1)));
   }
   .dial-face {
-    grid-column: 1 / -1;
-    grid-row: 1;
+    grid-column: 1;
+    grid-row: 1 / 4;
     position: relative;
     place-self: center;
-    block-size: 56px;
-    inline-size: 56px;
+    block-size: 48px;
+    inline-size: 48px;
   }
   .dial-arc {
     display: block;
@@ -188,22 +192,36 @@
   }
   .dial-needle {
     position: absolute;
-    inset: 8px 27px;
+    inset: 7px 23px;
     background: oklch(var(--source, var(--audle-source-1)));
     border-radius: 999px;
     transform: rotate(var(--needle-angle));
-    transform-origin: center 20px;
+    transform-origin: center 17px;
   }
   .dial .label,
+  .dial output,
+  .dial .detail {
+    grid-column: 2;
+    min-inline-size: 0;
+    white-space: nowrap;
+  }
+  .dial .label {
+    grid-row: 1;
+  }
   .dial output {
     grid-row: 2;
   }
+  .dial .detail {
+    grid-row: 3;
+    color: var(--audle-text-muted);
+    font-size: 0.6rem;
+  }
   .dial input {
-    grid-column: 1 / -1;
-    grid-row: 1;
+    grid-column: 1;
+    grid-row: 1 / 4;
     z-index: 1;
-    block-size: 56px;
-    inline-size: 56px;
+    block-size: 48px;
+    inline-size: 48px;
     justify-self: center;
     margin: 0;
     opacity: 0;

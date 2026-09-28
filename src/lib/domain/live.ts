@@ -87,7 +87,7 @@ const positionsFor = (track: Track, bars: number, pattern: LivePattern): number[
   return positions;
 };
 
-/** One piece of the two-bar source placed inside a bar. */
+/** One piece of a loop source placed inside a bar. */
 interface LoopSlice {
   offsetInBar: number;
   lengthTicks: number;
@@ -101,10 +101,9 @@ const slice = (offsetInBar: number, lengthTicks: number, sourceOffsetTick: numbe
 });
 
 /**
- * How each feel tiles the loop out of slices of the source, bar by bar. `span` is the source's own
- * length in ticks, so a four-bar source is walked in full and a two-bar source keeps its old
- * behaviour. Returning nothing for a bar leaves a rest there. As with the hits above, no two feels
- * may tile a loop length the same way.
+ * Tile each feel from source windows, bar by bar. `span` bounds source reads, so longer sources
+ * expose later windows instead of wrapping after two bars. Returning nothing leaves a rest.
+ * Distinct source paths matter: dividing a continuous pass into clips is not a different feel.
  */
 const LOOP_SLICES: Record<LivePattern, (bar: number, span: number) => readonly LoopSlice[]> = {
   steady: (bar, span) => [slice(0, TICKS_PER_BAR, (bar * TICKS_PER_BAR) % span)],
@@ -120,14 +119,16 @@ const LOOP_SLICES: Record<LivePattern, (bar: number, span: number) => readonly L
     ),
   // Hold one pushed window, so the phrase always starts an eighth late and its accents miss the beat.
   offbeat: () => [slice(0, HALF_BAR, HALF_BAR), slice(HALF_BAR, HALF_BAR, HALF_BAR)],
-  dense: (bar, span) =>
-    [0, 1, 2, 3].map((quarter) =>
+  dense: (bar, span) => {
+    const sourceQuarters = span / QUARTER_BAR;
+    return [0, 2, 1, 2].map((sourceQuarter, quarter) =>
       slice(
         quarter * QUARTER_BAR,
         QUARTER_BAR,
-        (QUARTER_BAR * ((bar * 4 + quarter) % (span / QUARTER_BAR))) % span,
+        QUARTER_BAR * ((bar * 4 + sourceQuarter) % sourceQuarters),
       ),
-    ),
+    );
+  },
   // The source's closing bar, held for a whole bar.
   halftime: (bar, span) => (bar % 2 ? [] : [slice(0, TICKS_PER_BAR, span - TICKS_PER_BAR)]),
 };

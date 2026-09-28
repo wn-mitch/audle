@@ -11,7 +11,9 @@ import {
 import {
   DEFAULT_TRACK_CONTROLS,
   DEFAULT_SOURCE_TICKS,
+  MAX_CLIPS,
   TICKS_PER_BAR,
+  sourceTicks,
   type Clip,
   type CompositionV1,
   type SampleKind,
@@ -96,20 +98,80 @@ describe('live patterns', () => {
     }
   });
 
-  it('keeps every loop feel reading from inside the two-bar source', () => {
+  it('keeps every loop feel inside its declared source length', () => {
     for (const [index, role] of ROLES.entries()) {
       if (kindAt(index) !== 'loop') continue;
       const track = kitTrack(index);
+      const span = sourceTicks(sampleById(track.sampleId));
       for (const feel of LIVE_PATTERNS) {
         for (const clip of clipsForPattern(track, 4, feel)) {
           if (clip.kind !== 'loop') throw new Error(`${feel} gave the ${role} role hits`);
           expect(
             clip.sourceOffsetTick + clip.lengthTicks,
             `${role} on ${feel} reads past the source`,
-          ).toBeLessThanOrEqual(DEFAULT_SOURCE_TICKS);
+          ).toBeLessThanOrEqual(span);
         }
       }
     }
+  });
+
+  it('reorders and retriggers dense Ukulele Texture slices instead of walking steady source', () => {
+    for (const sampleId of ['texture-04', 'chord-05'] as const) {
+      const sample = sampleById(sampleId)!;
+      const track: Track = {
+        id: sample.id,
+        sampleId: sample.id,
+        label: sample.label,
+        controls: { ...DEFAULT_TRACK_CONTROLS },
+        clips: [],
+      };
+      const sourceSpan = sourceTicks(sample);
+
+      for (const bars of [1, 2, 4] as const) {
+        const denseLoops = clipsForPattern(track, bars, 'dense').filter(
+          (clip) => clip.kind === 'loop',
+        );
+        const steadyWindows = clipsForPattern(track, bars, 'steady')
+          .filter((clip) => clip.kind === 'loop')
+          .flatMap((clip) =>
+            Array.from(
+              { length: clip.lengthTicks / (TICKS_PER_BAR / 4) },
+              (_, quarter) => clip.sourceOffsetTick + quarter * (TICKS_PER_BAR / 4),
+            ),
+          );
+
+        expect(denseLoops).toHaveLength(bars * 4);
+        expect(denseLoops.map((clip) => clip.startTick)).toEqual(
+          Array.from({ length: bars * 4 }, (_, quarter) => quarter * (TICKS_PER_BAR / 4)),
+        );
+        expect(denseLoops.map((clip) => clip.lengthTicks)).toEqual(
+          Array.from({ length: bars * 4 }, () => TICKS_PER_BAR / 4),
+        );
+        expect(denseLoops.map((clip) => clip.sourceOffsetTick)).not.toEqual(steadyWindows);
+        expect(
+          denseLoops.every((clip) => clip.sourceOffsetTick + clip.lengthTicks <= sourceSpan),
+        ).toBe(true);
+        expect(denseLoops.slice(0, 4).map((clip) => clip.sourceOffsetTick)).toEqual([
+          0,
+          TICKS_PER_BAR / 2,
+          TICKS_PER_BAR / 4,
+          TICKS_PER_BAR / 2,
+        ]);
+      }
+    }
+  });
+
+  it('keeps a four-bar full kit dense pattern within the clip limit', () => {
+    let composition = emptyComposition(4);
+    for (const track of composition.tracks) {
+      const result = setLivePattern(composition, track.id, 'dense');
+      expect(result.ok).toBe(true);
+      if (result.ok) composition = result.value;
+    }
+
+    expect(
+      composition.tracks.reduce((count, track) => count + track.clips.length, 0),
+    ).toBeLessThanOrEqual(MAX_CLIPS);
   });
 });
 

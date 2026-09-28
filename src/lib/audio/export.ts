@@ -55,6 +55,8 @@ export const renderWav = async (
       }),
     ),
   );
+  const effects: Array<Tone.Distortion | Tone.Reverb | Tone.FeedbackDelay> = [];
+  const reverbs: Tone.Reverb[] = [];
   try {
     const result = await Tone.Offline(
       (offlineContext) => {
@@ -79,11 +81,46 @@ export const renderWav = async (
           }
         };
         for (const track of source.tracks) {
-          const filter = new Tone.Filter({ type: 'lowpass', frequency: track.controls.cutoffHz });
-          const panner = new Tone.Panner(track.controls.pan);
-          const gain = new Tone.Gain();
-          filter.chain(panner, gain, limiter);
-          gains.set(track.id, gain);
+          const filter = new Tone.Filter({
+            context: offlineContext,
+            type: 'lowpass',
+            frequency: track.controls.cutoffHz,
+          });
+          const panner = new Tone.Panner({ context: offlineContext, pan: track.controls.pan });
+          const gain = new Tone.Gain({ context: offlineContext });
+          const trackEffects: Array<Tone.Distortion | Tone.Reverb | Tone.FeedbackDelay> = [];
+          if (track.controls.fuzz > 0) {
+            const fuzz = new Tone.Distortion({
+              context: offlineContext,
+              distortion: track.controls.fuzz,
+              oversample: '2x',
+              wet: 1,
+            });
+            trackEffects.push(fuzz);
+            effects.push(fuzz);
+          }
+          if (track.controls.space > 0) {
+            const space = new Tone.Reverb({
+              context: offlineContext,
+              decay: 2.8,
+              preDelay: 0.015,
+              wet: track.controls.space,
+            });
+            trackEffects.push(space);
+            effects.push(space);
+            reverbs.push(space);
+          }
+          if (track.controls.echo > 0) {
+            const echo = new Tone.FeedbackDelay({
+              context: offlineContext,
+              delayTime: '8n',
+              feedback: 0.35,
+              wet: track.controls.echo,
+            });
+            trackEffects.push(echo);
+            effects.push(echo);
+          }
+          filter.chain(panner, ...trackEffects, gain, limiter);
           const sample = sampleById(track.sampleId);
           const buffer = buffers.get(track.sampleId);
           if (!sample || !buffer) continue;
@@ -139,6 +176,7 @@ export const renderWav = async (
           }, `${event.tick}i`);
         }
         transport.start();
+        return Promise.all(reverbs.map((reverb) => reverb.ready)).then(() => undefined);
       },
       secondsFor(durationTicks, source.challenge.bpm),
       2,
@@ -148,6 +186,7 @@ export const renderWav = async (
     if (!audio) throw new Error('Audio rendering returned no buffer.');
     return asWav(audio);
   } finally {
+    for (const effect of effects) effect.dispose();
     for (const buffer of buffers.values()) buffer.dispose();
   }
 };

@@ -17,6 +17,7 @@ class FakeAudioEngine implements AudioEngine {
   playing = false;
   durations = new Map<string, number>();
   tick = 0;
+  waveforms = new Map<string, Float32Array>();
   private scheduled: Array<{ tick: number; callback: (tick: number) => void }> = [];
   private readonly listeners = new Set<(snapshot: TransportSnapshot) => void>();
   private readonly hitListeners = new Set<(hit: HitEvent) => void>();
@@ -70,6 +71,9 @@ class FakeAudioEngine implements AudioEngine {
   }
   sourceDurationSeconds(sampleId: string): number | undefined {
     return this.durations.get(sampleId);
+  }
+  trackWaveform(trackId: string): Float32Array | undefined {
+    return this.waveforms.get(trackId);
   }
   setTrackControls(trackId: string, controls: TrackControls): void {
     this.controls.push({ trackId, controls });

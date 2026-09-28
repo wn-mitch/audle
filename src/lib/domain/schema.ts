@@ -78,6 +78,10 @@ const controlsSchema = z
       .refine((value) => hasStep(value, 0.05)),
     tuneSemitones: z.number().int().min(-12).max(12),
     cutoffHz: z.number().min(200).max(18000),
+    // Defaults retain dry compatibility for pre-effects saved drafts.
+    space: z.number().min(0).max(1).default(0),
+    echo: z.number().min(0).max(1).default(0),
+    fuzz: z.number().min(0).max(1).default(0),
     muted: z.boolean(),
     solo: z.boolean(),
   })
@@ -353,3 +357,46 @@ export const PerformanceShareWireV2Schema = z.tuple([
 ]);
 
 export type PerformanceShareWireV2 = z.infer<typeof PerformanceShareWireV2Schema>;
+
+/** Effects extend the v3 track tuple without changing the v3/v4 wire contract. */
+const wireTrackSchemaV3 = z.tuple([
+  z.number().int(),
+  z.string(),
+  z.number(),
+  z.number(),
+  z.number().int(),
+  z.number(),
+  z.union([z.literal(0), z.literal(1)]),
+  z.union([z.literal(0), z.literal(1)]),
+  z.array(z.union([wireLoopClipSchema, wireHitClipSchema])),
+  z.number().min(0).max(1),
+  z.number().min(0).max(1),
+  z.number().min(0).max(1),
+]);
+
+/** Version 5 carries sixteen sources plus per-track effects. */
+export const ShareWireV3Schema = z.tuple([
+  z.literal(5),
+  wireChallengeV2Schema,
+  z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
+  z.array(wireTrackSchemaV3),
+]);
+
+export type ShareWireV3 = z.infer<typeof ShareWireV3Schema>;
+
+/** Version 6 carries a performance that references a version 5 composition. */
+export const PerformanceShareWireV3Schema = z.tuple([
+  z.literal(6),
+  ShareWireV3Schema,
+  z.number().int().positive(),
+  z.array(
+    z.tuple([
+      z.number().int().nonnegative(),
+      z.number().int().nonnegative(),
+      z.union([z.literal(0), z.literal(1)]),
+      z.union([z.literal(0), z.literal(1)]),
+    ]),
+  ),
+]);
+
+export type PerformanceShareWireV3 = z.infer<typeof PerformanceShareWireV3Schema>;

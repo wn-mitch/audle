@@ -22,7 +22,17 @@ const payload = (() => {
       id: `track-${index}`,
       sampleId,
       label: `Source ${index + 1}`,
-      controls: { gainDb: 0, pan: 0, tuneSemitones: 0, cutoffHz: 18000, muted: false, solo: false },
+      controls: {
+        gainDb: 0,
+        pan: 0,
+        tuneSemitones: 0,
+        cutoffHz: 18000,
+        space: 0,
+        echo: 0,
+        fuzz: 0,
+        muted: false,
+        solo: false,
+      },
       clips: [],
     })),
   });
