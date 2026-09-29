@@ -143,6 +143,30 @@ describe('EditorState', () => {
     state.destroy();
   });
 
+  it('disarms pad recording across an unresolved audio unlock', async () => {
+    const engine = new FakeAudioEngine();
+    const challenge = challengeForDate('2026-08-12');
+    const state = new EditorState(engine, challenge);
+    await state.loadAudio();
+    await state.toggleRecording();
+    expect(engine.armed).toBe(true);
+    state.disarmRecording();
+    expect(engine.armed).toBe(false);
+    expect(state.recording).toBe(false);
+
+    let release!: () => void;
+    engine.unlock = () => new Promise<void>((resolve) => (release = resolve));
+    const arming = state.toggleRecording();
+    state.disarmRecording();
+    release();
+    await arming;
+    expect(engine.armed).toBe(false);
+    expect(state.recording).toBe(false);
+    state.pressPad(challenge.sampleIds[12]!);
+    expect(state.composition.tracks[12]!.clips).toHaveLength(0);
+    state.destroy();
+  });
+
   it('auditions the selected source without changing the loop and refuses armed recording', async () => {
     const engine = new FakeAudioEngine();
     const challenge = challengeForDate('2026-08-12');

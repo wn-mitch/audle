@@ -104,6 +104,7 @@ export class EditorState {
   captureStatus = $state<'idle' | 'count-in' | 'recording'>('idle');
   performance = $state.raw<PerformanceV1 | undefined>(undefined);
   playingPerformance = $state(false);
+  private recordingRequest = 0;
   private pendingLive = new SvelteMap<string, Unsubscribe>();
   private pendingCapture: Unsubscribe | undefined;
   private captureStartTick = 0;
@@ -491,12 +492,23 @@ export class EditorState {
     this.engine.setComposition(this.composition);
   }
 
+  disarmRecording(): void {
+    this.recordingRequest += 1;
+    this.recording = false;
+    this.engine.armRecord(false);
+  }
+
   async toggleRecording(): Promise<void> {
     if (this.loading || this.loadingError) return;
-    const next = !this.recording;
-    if (next) await this.engine.unlock();
-    this.recording = next;
-    this.engine.armRecord(next);
+    if (this.recording) {
+      this.disarmRecording();
+      return;
+    }
+    const request = ++this.recordingRequest;
+    await this.engine.unlock();
+    if (request !== this.recordingRequest) return;
+    this.recording = true;
+    this.engine.armRecord(true);
   }
 
   /** Auditions the selected source without adding or changing a clip. */

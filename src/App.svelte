@@ -107,12 +107,15 @@
   };
   const showMaker = (mode: 'play' | 'arrange') => {
     if (view === 'tutorial') return finishTutorial(false, mode);
+    const changingView = view !== 'maker' || makerMode !== mode;
+    if (mode === 'play') editor.disarmRecording();
     if (view !== 'maker') leaveShared();
     if (mode === 'arrange') {
       if (editor.captureStatus !== 'idle') editor.stopCapture();
       if (editor.playingPerformance) editor.stopCapturePlayback();
     }
     makerMode = mode;
+    if (changingView) window.scrollTo(0, 0);
   };
 
   const openShare = () => {
@@ -126,6 +129,7 @@
 
   const openShared = (composition: CompositionV1) => {
     closeShare();
+    editor.disarmRecording();
     editor.stopPlayback();
     shared = { composition };
     sharedError = undefined;
@@ -142,12 +146,14 @@
     const composition = shared.composition;
     leaveShared();
     makerMode = 'arrange';
+    window.scrollTo(0, 0);
     editor.importComposition(composition);
   };
 
   const readSharedFragment = () => {
     const fragment = location.hash;
     if (!fragment.startsWith('#audle=')) return;
+    editor.disarmRecording();
     editor.stopPlayback();
     closeShare();
     const payload = fragment.slice('#audle='.length);
@@ -225,6 +231,7 @@
     if (view === 'tutorial') return;
     if (view === 'shared') leaveShared();
     closeShare();
+    editor.disarmRecording();
     editor.stopPlayback();
     tutorialCanKeep = !makerHasClips;
     tutorial = new EditorState(engine, challenge, starterForChallenge(challenge));
@@ -236,12 +243,14 @@
     const finished = tutorial;
     if (!finished) return;
     saveTutorialComplete();
+    finished.disarmRecording();
     engine.stop();
     if (keep && tutorialCanKeep) editor.importComposition(finished.composition);
     finished.detach();
     tutorial = undefined;
     view = 'maker';
     makerMode = mode;
+    window.scrollTo(0, 0);
     void editor.loadAudio();
   };
 
@@ -386,17 +395,10 @@
               class="empty-arrangement grid justify-items-start gap-[7px] border border-audle-outline bg-audle-deck p-4 shadow-[var(--audle-deck-edge)]"
             >
               <strong>Tap any sound.</strong><span class="text-[0.82rem] text-audle-text-muted"
-                >Tap a lane to place a sound, let Jev jam a loop, or start from something made.</span
+                >Tap a lane to place a sound.</span
               >
               <div class="empty-actions flex flex-wrap gap-2">
                 <button
-                  class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-loop-light bg-audle-loop-surface px-3 font-bold text-audle-text"
-                  disabled={editor.jamming}
-                  type="button"
-                  use:press
-                  onclick={() => void editor.jamWithJev('')}
-                  ><Icon name="spark" /> Jam with Jev</button
-                ><button
                   class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-loop-light bg-audle-loop-surface px-3 font-bold text-audle-text"
                   type="button"
                   use:press
@@ -409,28 +411,29 @@
                   onclick={startTutorial}>Try a ready-made beat</button
                 >
               </div>
-              <div
-                class="examples mt-1.5 flex w-full flex-wrap items-center gap-1.5 border-t border-audle-outline-subtle pt-2.5"
-                role="group"
-                aria-label="Hear an example"
-              >
-                <span class="mr-1">Hear an example</span>
-                {#each examples as example, index (index)}
-                  <button
-                    class="inline-flex min-h-9 cursor-pointer items-center gap-2 border border-audle-outline-subtle bg-transparent px-2.5 text-[0.8rem] font-bold text-audle-text-muted hover:text-audle-accent"
-                    type="button"
-                    onclick={() => openShared(example)}
-                    ><Icon name="play" size={12} />
-                    {EXAMPLE_NAMES[index] ?? `Example ${index + 1}`}</button
-                  >
-                {/each}
-              </div>
+              <details class="examples mt-1.5 w-full border-t border-audle-outline-subtle pt-2.5">
+                <summary class="min-h-11 cursor-pointer text-audle-text-muted"
+                  >Hear an example</summary
+                >
+                <div class="flex flex-wrap items-center gap-1.5">
+                  {#each examples as example, index (index)}
+                    <button
+                      class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-outline-subtle bg-transparent px-2.5 text-[0.8rem] font-bold text-audle-text-muted hover:text-audle-accent"
+                      type="button"
+                      onclick={() => openShared(example)}
+                      ><Icon name="play" size={12} />
+                      {EXAMPLE_NAMES[index] ?? `Example ${index + 1}`}</button
+                    >
+                  {/each}
+                </div>
+              </details>
             </div>
           {/if}
           <JevJam {editor} />
           <TimelineEditor {editor} />
           <div
             class="dock sticky z-10 grid border-t border-audle-outline bg-audle-deck [inset-block-end:env(safe-area-inset-bottom,0px)]"
+            class:empty={!makerHasClips}
           >
             <SelectionActions {editor} />
             <TransportBar {editor} onShare={openShare} />
@@ -509,3 +512,11 @@
     onOpen={openShared}
   />
 </main>
+
+<style>
+  @media (max-width: 620px) {
+    .dock.empty {
+      position: static;
+    }
+  }
+</style>

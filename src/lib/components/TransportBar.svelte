@@ -24,17 +24,22 @@
       <Icon name={editor.playing ? 'stop' : 'play'} />
       {editor.playing ? 'Stop' : 'Play'}
     </button>
-    <button
-      class="record inline-flex min-h-12 items-center justify-center gap-1.5 border border-audle-outline bg-audle-control px-3 font-bold text-audle-text shadow-[var(--audle-control-rest)] hover:enabled:bg-audle-control-hover disabled:cursor-not-allowed disabled:bg-audle-disabled disabled:text-audle-disabled-ink [&_.icon]:text-audle-record-light"
-      aria-pressed={editor.recording}
-      class:recording={editor.recording}
-      disabled={editor.loading || Boolean(editor.loadingError)}
-      type="button"
-      onclick={() => void editor.toggleRecording()}
-    >
-      <Icon name="record" />
-      {editor.recording ? 'Recording' : 'Record'}
-    </button>
+    <div class="grid justify-items-center">
+      <button
+        class="record inline-flex min-h-12 items-center justify-center gap-1.5 border border-audle-outline bg-audle-control px-3 font-bold text-audle-text shadow-[var(--audle-control-rest)] hover:enabled:bg-audle-control-hover disabled:cursor-not-allowed disabled:bg-audle-disabled disabled:text-audle-disabled-ink [&_.icon]:text-audle-record-light"
+        aria-pressed={editor.recording}
+        class:recording={editor.recording}
+        disabled={editor.loading || Boolean(editor.loadingError)}
+        type="button"
+        onclick={() => void editor.toggleRecording()}
+      >
+        <Icon name="record" />
+        {editor.recording ? 'Stop recording pads' : 'Record pads'}
+      </button>
+      {#if editor.recording}
+        <small role="status" class="text-audle-text-muted">Pad taps add clips</small>
+      {/if}
+    </div>
     <div
       class="bars grid gap-0.5 text-[0.65rem] font-bold tracking-[0.08em] text-audle-text-muted uppercase max-[400px]:w-full"
       role="group"
@@ -44,7 +49,7 @@
       <div class="segments flex [&>button+button]:border-l-0">
         {#each [1, 2, 3, 4] as bars (bars)}
           <button
-            class="min-h-[30px] min-w-[34px] border border-audle-outline bg-audle-control px-0 text-[0.85rem] font-bold text-audle-text shadow-[var(--audle-control-rest)] hover:enabled:bg-audle-control-hover disabled:cursor-not-allowed disabled:bg-audle-disabled disabled:text-audle-disabled-ink"
+            class="min-h-11 min-w-11 border border-audle-outline bg-audle-control px-0 text-[0.85rem] font-bold text-audle-text shadow-[var(--audle-control-rest)] hover:enabled:bg-audle-control-hover disabled:cursor-not-allowed disabled:bg-audle-disabled disabled:text-audle-disabled-ink"
             type="button"
             aria-pressed={editor.composition.bars === bars}
             aria-label={`${bars} ${bars === 1 ? 'bar' : 'bars'}`}

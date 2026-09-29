@@ -1,5 +1,267 @@
 import { expect, test } from '@playwright/test';
 
+test('empty Arrange exposes a lane without page scrolling on a phone', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium', 'Phone layout only.');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  await expect(page.getByText('Decoding sounds')).toHaveCount(0);
+  expect(await page.evaluate(() => scrollY)).toBe(0);
+  const lane = page.locator('.lane-content').first();
+  const target = await page.evaluate(() => {
+    const lane = document.querySelector<HTMLElement>('.lane-content')!;
+    const header = document.querySelector<HTMLElement>('.track-header')!;
+    const box = lane.getBoundingClientRect();
+    return {
+      x: header.getBoundingClientRect().right + 40,
+      y: box.top + box.height / 2,
+      top: box.top,
+      bottom: box.bottom,
+    };
+  });
+  expect(target.top).toBeLessThan(844);
+  expect(target.bottom).toBeGreaterThan(0);
+  expect(
+    await page.evaluate(
+      ({ x, y }) => document.elementFromPoint(x, y)?.closest('.lane-content') !== null,
+      target,
+    ),
+  ).toBe(true);
+  await page.touchscreen.tap(target.x, target.y);
+  await expect(lane.locator('.clip:not(.hit)')).toHaveAttribute('aria-label', /at tick 0\b/);
+});
+
+test('empty Arrange controls remain reachable at 320px without horizontal overflow', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium', 'Phone layout only.');
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  await expect(page.getByText('Decoding sounds')).toHaveCount(0);
+  expect(
+    await page.evaluate(() =>
+      Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+    ),
+  ).toBeLessThanOrEqual(320);
+  await expect(page.getByLabel('Vibe for Jev')).toBeAttached();
+  await expect(page.getByRole('button', { name: 'Remix today’s starter' })).toBeAttached();
+  await expect(page.getByRole('button', { name: 'Try a ready-made beat' })).toBeAttached();
+  await page.locator('summary').filter({ hasText: 'Hear an example' }).click();
+  await expect(page.getByRole('button', { name: 'Four on the floor' })).toBeVisible();
+});
+test('pad recording ends on Play, Help, example and shared-link exits', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  await expect(page.getByText('Decoding sounds')).toHaveCount(0);
+  const record = page.getByRole('button', { name: 'Record pads' });
+  const pad = page.locator('.pad-bank .pad').nth(8);
+  const clips = page.locator('.lane').nth(8).locator('.clip.hit');
+  await record.click();
+  await expect(page.getByRole('button', { name: 'Stop recording pads' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByRole('status').filter({ hasText: 'Pad taps add clips' })).toBeVisible();
+  await pad.click();
+  await expect(clips).toHaveCount(1);
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(clips).toHaveCount(0);
+  await page.getByRole('button', { name: 'Redo' }).click();
+  await expect(clips).toHaveCount(1);
+
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Record pads' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await pad.click();
+  await expect(clips).toHaveCount(1);
+
+  await record.click();
+  await page.getByRole('button', { name: 'Help' }).click();
+  await record.click();
+  await expect(page.getByRole('button', { name: 'Stop recording pads' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Record pads' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(clips).toHaveCount(0);
+  await record.click();
+  await page.locator('summary').filter({ hasText: 'Hear an example' }).click();
+  await page.getByRole('button', { name: 'Four on the floor' }).click();
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Record pads' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await pad.click();
+  await expect(clips).toHaveCount(0);
+  await record.click();
+  await page.evaluate(() => {
+    location.hash = '#audle=invalid';
+  });
+  await expect(page.getByRole('heading', { name: 'That link did not open.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Record pads' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+});
+
+test('sound identity and parameter language follow selection across views', async ({ page }) => {
+  await page.goto('/');
+  const sound = page.locator('.sound-object').nth(8);
+  await expect(sound).toBeEnabled();
+  await sound.click();
+  const name = (await page.locator('.play-controls h2').textContent())!.trim();
+  await page.locator('.dials input[aria-label="Pan"]').fill('-0.35');
+  await page.locator('.dials input[aria-label="Tune"]').fill('3');
+  await expect(page.locator('.dials input[aria-label="Pan"]')).toHaveAttribute(
+    'aria-valuetext',
+    'LEFT 35',
+  );
+  await expect(page.locator('.dials input[aria-label="Tune"]')).toHaveAttribute(
+    'aria-valuetext',
+    '+3 STEPS',
+  );
+
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  const pad = page.locator('.pad-bank .pad').nth(8);
+  const lane = page.locator('.lane').nth(8);
+  await expect(pad).toContainText('09');
+  await expect(pad).toContainText(name);
+  await expect(lane.locator('.source-number')).toHaveText('09');
+  await expect(lane.locator('input[aria-label^="Label for"]')).toHaveValue(name);
+  await expect(page.locator('#tuning-title')).toHaveText(name);
+  await expect(page.locator('.knobs input[aria-label="Level"]')).toBeVisible();
+  await expect(page.locator('.knobs input[aria-label="Filter"]')).toBeVisible();
+  await expect(page.locator('.knobs input[aria-label="Pan"]')).toHaveAttribute(
+    'aria-valuetext',
+    'LEFT 35',
+  );
+  await expect(page.locator('.knobs input[aria-label="Tune"]')).toHaveAttribute(
+    'aria-valuetext',
+    '+3 STEPS',
+  );
+  await expect(page.locator('.knobs input[aria-label="Pan"]')).toHaveValue('-0.35');
+  await expect(page.locator('.knobs input[aria-label="Tune"]')).toHaveValue('3');
+
+  await page.locator('.knobs input[aria-label="Pan"]').fill('0.4');
+  await page.locator('.knobs input[aria-label="Tune"]').fill('-1');
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(page.locator('.dials input[aria-label="Pan"]')).toHaveValue('0.4');
+  await expect(page.locator('.dials input[aria-label="Tune"]')).toHaveValue('-1');
+  await expect(page.locator('.dials input[aria-label="Pan"]')).toHaveAttribute(
+    'aria-valuetext',
+    'RIGHT 40',
+  );
+  await expect(page.locator('.dials input[aria-label="Tune"]')).toHaveAttribute(
+    'aria-valuetext',
+    '−1 STEP',
+  );
+});
+
+test('lane source keys seek, announce and place exact clips without losing focus', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  await expect(page.getByText('Decoding sounds')).toHaveCount(0);
+  const kick = page.getByRole('button', { name: 'Select Stomp Kick' });
+  await kick.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('#timeline-keyboard-position')).toHaveText('Bar 1, step 2 of 16');
+  await page.keyboard.press('Enter');
+  const hits = page.locator('.lane').nth(8).locator('.clip.hit');
+  await expect(hits).toHaveCount(1);
+  await expect(hits.first()).toHaveAttribute('aria-label', /at tick 24\b/);
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Enter');
+  await expect(hits).toHaveCount(2);
+  await expect(
+    page.locator('.lane').nth(8).locator('.clip.hit[aria-label*="at tick 0,"]'),
+  ).toHaveCount(1);
+  await page.keyboard.press('End');
+  await expect(page.locator('#timeline-keyboard-position')).toHaveText(/step 16 of 16/);
+  await page.keyboard.press('Enter');
+  await expect(hits).toHaveCount(3);
+  await expect(hits.last()).toHaveAttribute('aria-label', /at tick (744|1512)\b/);
+  await expect(kick).toBeFocused();
+  const viewport = await page.locator('.timeline-scroll').boundingBox();
+  const end = await hits.last().boundingBox();
+  expect(end!.x).toBeLessThan(viewport!.x + viewport!.width);
+
+  const loop = page.locator('.track-header .source').first();
+  await loop.focus();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Space');
+  const loopClip = page.locator('.lane').first().locator('.clip:not(.hit)');
+  await expect(loopClip).toHaveAttribute('aria-label', /at tick 0\b/);
+  await loopClip.focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    page.getByRole('button', { name: 'Nudge selected clips one step earlier' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Nudge selected clips one step later' }),
+  ).toBeVisible();
+  await page.keyboard.press('Delete');
+  await expect(loopClip).toHaveCount(0);
+});
+
+test('selected loop resizing remains accessible without taking an adjacent loop tap', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  await expect(page.getByText('Decoding sounds')).toHaveCount(0);
+  const source = page.locator('.track-header .source').first();
+  const lane = page.locator('.lane').first();
+  await source.focus();
+  await page.keyboard.press('Enter');
+  const firstGrip = lane.locator('.resize').first();
+  await firstGrip.focus();
+  while (Number(await firstGrip.getAttribute('aria-valuenow')) > 384)
+    await page.keyboard.press('ArrowLeft');
+  await source.focus();
+  await page.keyboard.press('Home');
+  for (let step = 0; step < 16; step += 1) await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Enter');
+  const clips = lane.locator('.clip:not(.hit)');
+  await expect(clips).toHaveCount(2);
+  await clips.first().click();
+  const shorten = page.getByRole('button', { name: 'Shorten' });
+  const lengthen = page.getByRole('button', { name: 'Lengthen' });
+  for (const button of [shorten, lengthen]) {
+    const size = (await button.boundingBox())!;
+    expect(size.width).toBeGreaterThanOrEqual(44);
+    expect(size.height).toBeGreaterThanOrEqual(44);
+  }
+  await shorten.click();
+  await expect(lane.locator('.resize').first()).toHaveAttribute('aria-valuenow', '360');
+  await lengthen.click();
+  await expect(lane.locator('.resize').first()).toHaveAttribute('aria-valuenow', '384');
+  const neighbor = (await clips.nth(1).boundingBox())!;
+  await page.mouse.click(neighbor.x + 10, neighbor.y + neighbor.height / 2);
+  await expect(clips.nth(1)).toHaveAttribute('aria-pressed', 'true');
+  await source.focus();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await expect(clips).toHaveCount(3);
+  await clips.last().click();
+  await expect(lengthen).toBeDisabled();
+});
+
 test('remixes the starter and layers the selected voice', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Arrange', exact: true }).click();
