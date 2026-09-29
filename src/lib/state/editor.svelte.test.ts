@@ -293,6 +293,30 @@ describe('EditorState', () => {
     state.destroy();
   });
 
+  it('turns a selected on pad off at the next bar and cancels that change on a second click', async () => {
+    const engine = new FakeAudioEngine();
+    const state = new EditorState(engine, challengeForDate('2026-08-12'));
+    await state.loadAudio();
+    await state.selectOrActivateLive('track-0');
+    const clips = state.composition.tracks[0]!.clips;
+
+    await state.selectOrActivateLive('track-0');
+    expect(state.selectedTrackId).toBe('track-0');
+    expect(state.liveStatus('track-0')).toBe('queued-off');
+    expect(state.composition.tracks[0]!.controls.muted).toBe(false);
+
+    await state.selectOrActivateLive('track-0');
+    expect(state.liveStatus('track-0')).toBe('on');
+    engine.advance(384);
+    expect(state.liveStatus('track-0')).toBe('on');
+
+    await state.selectOrActivateLive('track-0');
+    engine.advance(768);
+    expect(state.liveStatus('track-0')).toBe('off');
+    expect(state.composition.tracks[0]!.clips).toEqual(clips);
+    state.destroy();
+  });
+
   it('selects an on pad during a take without queuing a switch or recording an event', async () => {
     const engine = new FakeAudioEngine();
     const state = new EditorState(engine, challengeForDate('2026-08-12'));
@@ -325,6 +349,9 @@ describe('EditorState', () => {
 
     await state.selectOrActivateLive('track-0');
     expect(state.composition.tracks[0]!.controls.solo).toBe(true);
+    expect(state.liveStatus('track-0')).toBe('queued-off');
+    await state.selectOrActivateLive('track-0');
+    expect(state.liveStatus('track-0')).toBe('on');
     await state.selectOrActivateLive('track-2');
     expect(state.liveStatus('track-2')).toBe('queued-on');
     expect(state.queuedSolo['track-0']).toBe(false);

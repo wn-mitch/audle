@@ -107,9 +107,9 @@ test('under reduced motion, selected, pressed, queued, and focused pads keep sta
   const pressedTransform = await sound.evaluate((pad) => getComputedStyle(pad).transform);
   expect(pressedTransform).toBe('none');
   await page.mouse.up();
-  await expect(sound).toHaveAttribute('aria-label', /on, select/);
-  await page.locator('.live-control').click();
-  await expect(sound).toHaveAttribute('aria-label', /queued for next bar/);
+  await expect(sound).toHaveAttribute('aria-label', /queued to turn off next bar, cancel turn off/);
+  await sound.click();
+  await expect(sound).toHaveAttribute('aria-label', /on, turn off/);
 
   await sound.focus();
   await page.keyboard.press('Tab');

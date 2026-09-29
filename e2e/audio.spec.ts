@@ -83,7 +83,7 @@ test('starts and advances the transport after an explicit play gesture', async (
   await expect.poll(() => page.evaluate(() => window.__audleDebug?.transportTick() ?? 0)).toBe(0);
 });
 
-test('a Play tap starts audible music and the selected switch turns it off on a bar', async ({
+test('a Play tap starts audible music and a selected pad tap turns it off on a bar', async ({
   page,
 }) => {
   await page.goto('/');
@@ -94,11 +94,10 @@ test('a Play tap starts audible music and the selected switch turns it off on a 
   await expect.poll(() => activeVoiceCount(page)).toBeGreaterThan(0);
   await expect.poll(() => outputRms(page)).toBeGreaterThan(0.000001);
 
+  await expect(sound).toHaveAttribute('aria-label', /on, turn off/);
   await sound.click();
-  await expect(sound).toHaveAttribute('aria-label', /on, select/);
   await expect(sound).toHaveAttribute('aria-current', 'true');
-  await page.locator('.live-control').click();
-  await expect(sound).toHaveAttribute('aria-label', /queued for next bar/);
+  await expect(sound).toHaveAttribute('aria-label', /queued to turn off next bar, cancel turn off/);
   await expect(sound).toHaveAttribute('aria-pressed', 'true');
   await expect(sound).toHaveAttribute('aria-label', /off, select and turn on/, { timeout: 5000 });
   await expect(sound).toHaveAttribute('aria-pressed', 'false');

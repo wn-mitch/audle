@@ -52,7 +52,7 @@
   use:enter={{ index, columns: 4, once: 'play-grid' }}
   use:press={{ disabled }}
   use:popOn={selected}
-  aria-label={`${sample?.label ?? track.label}, ${sample?.role ?? 'sound'}, ${status === 'empty' ? 'add to loop' : status === 'off' ? 'off, select and turn on' : status === 'on' ? 'on, select' : status === 'queued-off' ? 'on, queued for next bar to turn off, select' : 'off, queued for next bar to turn on, select'}`}
+  aria-label={`${sample?.label ?? track.label}, ${sample?.role ?? 'sound'}, ${status === 'empty' ? 'add to loop' : status === 'off' ? 'off, select and turn on' : status === 'on' ? (selected ? 'on, turn off' : 'on, select') : status === 'queued-off' ? (selected ? 'on, queued to turn off next bar, cancel turn off' : 'on, queued to turn off next bar, select') : 'off, queued for next bar to turn on, select'}`}
   aria-pressed={sounding}
   aria-current={selected ? 'true' : undefined}
   {disabled}
