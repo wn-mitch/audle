@@ -128,6 +128,10 @@
     accent-color: var(--audle-playback-light);
     cursor: ew-resize;
   }
+  .knob:not(.dial) input {
+    min-block-size: 44px;
+  }
+
   .knob:has(input:active) {
     background: var(--audle-control-pressed);
     box-shadow: var(--audle-control-contact);

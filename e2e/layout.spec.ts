@@ -43,6 +43,28 @@ const expectCompactDeckToFit = async (page: Page) => {
   await expect.poll(() => compactDeckFitsViewport(page)).toMatchObject({ fits: true });
 };
 
+test('phone Arrange compact controls and Play dials meet their target sizes', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await waitForPlayDeck(page);
+  const dialSize = (await page.locator('.dial-face').first().boundingBox())!;
+  expect(dialSize.width).toBeGreaterThanOrEqual(48);
+  expect(dialSize.height).toBeGreaterThanOrEqual(48);
+  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+  await expect(page.getByText('Decoding sounds')).toHaveCount(0);
+  for (const selector of ['.segments button', '.knobs input[type="range"]']) {
+    for (const size of await page.locator(selector).evaluateAll((elements) =>
+      elements.map((element) => {
+        const box = element.getBoundingClientRect();
+        return { width: box.width, height: box.height };
+      }),
+    )) {
+      expect(size.width).toBeGreaterThanOrEqual(44);
+      expect(size.height).toBeGreaterThanOrEqual(44);
+    }
+  }
+});
+
 test('the compact Play deck stays fully usable at laptop height through a saved take', async ({
   page,
 }, testInfo) => {

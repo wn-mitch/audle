@@ -27,7 +27,7 @@
   {#if track}
     <div class="knobs grid grid-cols-2 gap-2">
       <Knob
-        label="Gain"
+        label="Level"
         min={-24}
         max={6}
         step={0.5}
@@ -43,7 +43,9 @@
         max={1}
         step={0.05}
         value={track.controls.pan}
-        valueText={track.controls.pan.toFixed(2)}
+        valueText={!track.controls.pan
+          ? 'CENTER'
+          : `${track.controls.pan < 0 ? 'LEFT' : 'RIGHT'} ${Math.round(Math.abs(track.controls.pan) * 100)}`}
         onStart={() => editor.beginControlGesture()}
         onChange={(value) => changeControls({ pan: value })}
         onEnd={() => editor.endControlGesture()}
@@ -54,7 +56,9 @@
         max={12}
         step={1}
         value={track.controls.tuneSemitones}
-        valueText={`${track.controls.tuneSemitones > 0 ? '+' : ''}${track.controls.tuneSemitones} st`}
+        valueText={!track.controls.tuneSemitones
+          ? 'ORIGINAL'
+          : `${track.controls.tuneSemitones > 0 ? '+' : '−'}${Math.abs(track.controls.tuneSemitones)} ${Math.abs(track.controls.tuneSemitones) === 1 ? 'STEP' : 'STEPS'}`}
         onStart={() => editor.beginControlGesture()}
         onChange={(value) => changeControls({ tuneSemitones: value })}
         onEnd={() => editor.endControlGesture()}

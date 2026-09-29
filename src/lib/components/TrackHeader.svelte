@@ -1,10 +1,15 @@
 <script lang="ts">
   import { sampleById } from '../data/samples';
-  import { SOURCES_PER_DAY, type Track } from '../domain/model';
+  import { SOURCES_PER_DAY, TICKS_PER_BAR, TICKS_PER_SIXTEENTH, type Track } from '../domain/model';
   import type { EditorState } from '../state/editor.svelte';
   import Icon from './Icon.svelte';
 
-  let { editor, track, index }: { editor: EditorState; track: Track; index: number } = $props();
+  let {
+    editor,
+    track,
+    index,
+    onKeyboardSeek,
+  }: { editor: EditorState; track: Track; index: number; onKeyboardSeek: () => void } = $props();
   const sample = $derived(sampleById(track.sampleId)!);
   const sourceIndex = $derived(editor.challenge.sampleIds.indexOf(track.sampleId));
 </script>
@@ -16,10 +21,36 @@
 >
   <button
     aria-label={`Select ${track.label}`}
+    aria-describedby="timeline-keyboard-instructions timeline-keyboard-position"
     class="source grid cursor-pointer content-center gap-px border-0 border-r border-audle-outline-subtle bg-transparent text-[0.65rem] capitalize text-audle-text-muted"
     type="button"
     onclick={() => (editor.selectedTrackId = track.id)}
+    onkeydown={(event) => {
+      const tick =
+        event.key === 'ArrowLeft'
+          ? editor.playheadTick - TICKS_PER_SIXTEENTH
+          : event.key === 'ArrowRight'
+            ? editor.playheadTick + TICKS_PER_SIXTEENTH
+            : event.key === 'Home'
+              ? 0
+              : event.key === 'End'
+                ? editor.composition.bars * TICKS_PER_BAR - TICKS_PER_SIXTEENTH
+                : undefined;
+      if (tick !== undefined) {
+        event.preventDefault();
+        editor.setPlayhead(tick);
+        onKeyboardSeek();
+      } else if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        editor.placeAt(track.id, editor.playheadTick);
+      }
+    }}
   >
+    {#if sourceIndex >= 0}
+      <span class="source-number font-mono font-bold"
+        >{String(sourceIndex + 1).padStart(2, '0')}</span
+      >
+    {/if}
     <span class="kind inline-flex text-audle-loop-light" class:hit={sample.kind !== 'loop'}
       ><Icon name={sample.kind === 'loop' ? 'loop' : 'hit'} size={14} /></span
     >
@@ -56,7 +87,7 @@
   }
 
   .track-header.source-known .kind,
-  .track-header.source-known .source-label {
+  .track-header.source-known .source-number {
     color: oklch(var(--source));
   }
 </style>

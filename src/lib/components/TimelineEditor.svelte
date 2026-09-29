@@ -7,6 +7,8 @@
 
   let { editor }: { editor: EditorState } = $props();
   let grid = $state<HTMLElement | undefined>(undefined);
+  let scrollport: HTMLElement;
+  let keyboardPosition = $state('');
   let selectMode = $state(false);
   let dragging = $state(false);
   let marquee = $state<{ startX: number; startY: number; endX: number; endY: number } | undefined>(
@@ -15,6 +17,19 @@
   let pressStart = $state<{ x: number; y: number } | undefined>(undefined);
   let pressTimer: number | undefined;
   const totalTicks = $derived(editor.composition.bars * TICKS_PER_BAR);
+  const onKeyboardSeek = () => {
+    const step = editor.playheadTick / TICKS_PER_SIXTEENTH;
+    keyboardPosition = `Bar ${Math.floor(step / 16) + 1}, step ${(step % 16) + 1} of 16`;
+    const lane = grid?.querySelector<HTMLElement>('.lane-content');
+    if (!lane) return;
+    const x =
+      lane.getBoundingClientRect().left + (editor.playheadTick / totalTicks) * lane.clientWidth;
+    const visible = scrollport.getBoundingClientRect();
+    const left = visible.left + 172 + 24;
+    const right = visible.right - 24;
+    if (x < left) scrollport.scrollLeft += x - left;
+    else if (x > right) scrollport.scrollLeft += x - right;
+  };
 
   /** While playing with motion allowed, the playhead sweeps at frame rate from the live transport;
    * otherwise it steps with each transport snapshot, which keeps click-to-place exact. */
@@ -265,8 +280,16 @@
       onclick={() => (selectMode = !selectMode)}>Select</button
     >
   </header>
+  <span id="timeline-keyboard-instructions" class="sr-only"
+    >Use Left and Right to move by one step, Home and End to jump, and Enter or Space to place a
+    sound.</span
+  >
+  <output id="timeline-keyboard-position" class="sr-only" aria-live="polite"
+    >{keyboardPosition}</output
+  >
   <div
     class="timeline-scroll min-h-0 overflow-auto overscroll-x-contain overscroll-y-auto max-[959px]:max-h-[54vh]"
+    bind:this={scrollport}
   >
     <div
       aria-label="Timeline selection surface"
@@ -307,7 +330,7 @@
           class:source-known={sourceIndex >= 0}
           style:--source={sourceIndex >= 0 ? `var(--audle-source-${sourceIndex + 1})` : undefined}
         >
-          <TrackHeader {editor} {track} index={trackIndex} />
+          <TrackHeader {editor} {track} index={trackIndex} {onKeyboardSeek} />
           <div
             aria-label={`${track.label} lane: click to ${loopLane ? 'toggle a loop in that bar' : 'add a hit'}`}
             class="lane-content relative min-h-14 cursor-crosshair overflow-hidden bg-audle-well shadow-[inset_0_2px_5px_oklch(0.025_0.007_255_/_0.88),inset_0_1px_0_oklch(0.57_0.02_255_/_0.14)] [container-type:inline-size]"

@@ -1,10 +1,14 @@
 <script lang="ts">
   import type { EditorState } from '../state/editor.svelte';
+  import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from '../domain/model';
   import Icon from './Icon.svelte';
 
   let { editor }: { editor: EditorState } = $props();
   const selected = $derived(editor.selectedClips);
   const hasSelection = $derived(selected.length > 0);
+  const selectedLoop = $derived(
+    selected.length === 1 && selected[0]?.kind === 'loop' ? selected[0] : undefined,
+  );
   const canSplit = $derived(
     hasSelection &&
       selected.every(
@@ -66,16 +70,41 @@
       >
       <button
         class="inline-flex min-h-11 items-center gap-1.5 border border-audle-outline bg-audle-control px-2.5 text-[0.75rem] font-bold text-audle-text shadow-[var(--audle-control-rest)] hover:enabled:bg-audle-selection-surface hover:enabled:border-audle-selection-light disabled:cursor-not-allowed disabled:bg-audle-disabled disabled:text-audle-disabled-ink max-[959px]:shrink-0"
+        aria-label="Nudge selected clips one step earlier"
         disabled={!hasSelection}
         type="button"
         onclick={() => editor.nudgeSelection(-1)}><Icon name="arrow-left" /> Nudge</button
       >
       <button
         class="inline-flex min-h-11 items-center gap-1.5 border border-audle-outline bg-audle-control px-2.5 text-[0.75rem] font-bold text-audle-text shadow-[var(--audle-control-rest)] hover:enabled:bg-audle-selection-surface hover:enabled:border-audle-selection-light disabled:cursor-not-allowed disabled:bg-audle-disabled disabled:text-audle-disabled-ink max-[959px]:shrink-0"
+        aria-label="Nudge selected clips one step later"
         disabled={!hasSelection}
         type="button"
         onclick={() => editor.nudgeSelection(1)}>Nudge <Icon name="arrow-right" /></button
       >
+      {#if selectedLoop}
+        <button
+          class="inline-flex min-h-11 min-w-11 items-center justify-center border border-audle-outline bg-audle-control px-2.5 text-[0.75rem] font-bold text-audle-text shadow-[var(--audle-control-rest)] disabled:cursor-not-allowed disabled:bg-audle-disabled disabled:text-audle-disabled-ink max-[959px]:shrink-0"
+          disabled={selectedLoop.lengthTicks <= TICKS_PER_SIXTEENTH}
+          type="button"
+          onclick={() =>
+            editor.resizeSelectedLoop(
+              selectedLoop.id,
+              selectedLoop.lengthTicks - TICKS_PER_SIXTEENTH,
+            )}>Shorten</button
+        >
+        <button
+          class="inline-flex min-h-11 min-w-11 items-center justify-center border border-audle-outline bg-audle-control px-2.5 text-[0.75rem] font-bold text-audle-text shadow-[var(--audle-control-rest)] disabled:cursor-not-allowed disabled:bg-audle-disabled disabled:text-audle-disabled-ink max-[959px]:shrink-0"
+          disabled={selectedLoop.startTick + selectedLoop.lengthTicks + TICKS_PER_SIXTEENTH >
+            editor.composition.bars * TICKS_PER_BAR}
+          type="button"
+          onclick={() =>
+            editor.resizeSelectedLoop(
+              selectedLoop.id,
+              selectedLoop.lengthTicks + TICKS_PER_SIXTEENTH,
+            )}>Lengthen</button
+        >
+      {/if}
       <button
         class="inline-flex min-h-11 items-center gap-1.5 border border-audle-outline bg-audle-control px-2.5 text-[0.75rem] font-bold text-audle-text shadow-[var(--audle-control-rest)] hover:enabled:bg-audle-selection-surface hover:enabled:border-audle-selection-light disabled:cursor-not-allowed disabled:bg-audle-disabled disabled:text-audle-disabled-ink max-[959px]:shrink-0"
         disabled={!hasSelection}

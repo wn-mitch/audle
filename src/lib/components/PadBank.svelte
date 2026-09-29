@@ -28,7 +28,11 @@
   <header class="flex items-baseline justify-between gap-2">
     <p class="m-0 text-[0.7rem] font-extrabold uppercase tracking-[0.1em]">Today’s source deck</p>
     <span class="text-[0.75rem] text-audle-text-muted"
-      >{editor.loading ? 'Decoding sounds' : 'Tap any sound'}</span
+      >{editor.loading
+        ? 'Decoding sounds'
+        : editor.recording
+          ? 'Tap to add clips'
+          : 'Tap to hear and select'}</span
     >
   </header>
   <div
@@ -61,15 +65,18 @@
           }
         }}
       >
-        <span aria-hidden="true" class="pad-glyph glyph inline-flex row-span-2"
+        <span class="source-number col-start-1 row-start-1 font-mono text-[0.75rem] font-bold"
+          >{String(index + 1).padStart(2, '0')}</span
+        >
+        <span aria-hidden="true" class="pad-glyph glyph col-start-1 row-start-2 inline-flex"
           ><Icon name={sample.kind === 'loop' ? 'loop' : 'hit'} size={18} /></span
         >
         <span
-          class={`pad-name text-[0.82rem] font-bold ${editor.loading ? 'w-[72%] bg-audle-control text-transparent' : ''}`}
+          class={`pad-name col-start-2 row-start-1 text-[0.82rem] font-bold ${editor.loading ? 'w-[72%] bg-audle-control text-transparent' : ''}`}
           >{editor.loading ? 'Loading' : sample.label}</span
         >
         <span
-          class="pad-kind text-[0.68rem] font-bold uppercase tracking-[0.08em] text-audle-text-muted"
+          class="pad-kind col-start-2 row-start-2 text-[0.68rem] font-bold uppercase tracking-[0.08em] text-audle-text-muted"
           >{sample.kind === 'loop' ? 'Loop' : 'Hit'}</span
         >
       </button>
@@ -126,7 +133,8 @@
       color-mix(in oklch, var(--audle-selection-light) 35%, oklch(var(--source)) 65%);
     outline-offset: -5px;
   }
-  .pad-glyph {
-    color: color-mix(in oklch, var(--pad-light) 40%, oklch(var(--source)) 60%);
+  .pad-glyph,
+  .source-number {
+    color: oklch(var(--source));
   }
 </style>
