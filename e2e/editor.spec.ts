@@ -152,11 +152,23 @@ test('phone timeline pans horizontally, then chains vertical scrolling to the pa
   await page.goto('/');
   await page.getByRole('button', { name: 'Arrange', exact: true }).click();
   const timeline = page.locator('.timeline-scroll');
-  const showTimeline = () =>
-    page.evaluate(() => {
-      const top = document.querySelector('.timeline-scroll')!.getBoundingClientRect().top + scrollY;
-      scrollTo(0, Math.max(0, top - 150));
-    });
+  await expect(page.getByText('Decoding sounds')).toHaveCount(0);
+  const showTimeline = async () => {
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const timeline = document.querySelector('.timeline-scroll')!;
+          const top = timeline.getBoundingClientRect().top + scrollY;
+          scrollTo(0, Math.max(0, top - 150));
+          const box = timeline.getBoundingClientRect();
+          const target = document.elementFromPoint(box.x + box.width / 2, box.y + 100);
+          return (
+            timeline.scrollHeight > timeline.clientHeight && !!target?.closest('.timeline-scroll')
+          );
+        }),
+      )
+      .toBe(true);
+  };
   await showTimeline();
   const pageBefore = await page.evaluate(() => scrollY);
   const box = (await timeline.boundingBox())!;
