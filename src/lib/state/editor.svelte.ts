@@ -188,6 +188,33 @@ export class EditorState {
     return !track?.clips.length ? 'empty' : track.controls.muted ? 'off' : 'on';
   }
 
+  async selectOrActivateLive(trackId: string): Promise<void> {
+    const track = this.composition.tracks.find((candidate) => candidate.id === trackId);
+    if (!track || this.loading || this.loadingError || this.playingPerformance) return;
+    const changedSelection = this.selectedTrackId !== trackId;
+    const activating =
+      !track.clips.length || (track.controls.muted && this.queuedLive[trackId] === undefined);
+    this.selectedTrackId = trackId;
+    if (!changedSelection && !activating) return;
+    if (!track.clips.length && this.captureStatus === 'recording') {
+      await this.toggleLive(trackId);
+      return;
+    }
+    for (const candidate of this.composition.tracks) {
+      if (!(this.queuedSolo[candidate.id] ?? candidate.controls.solo)) continue;
+      // The count-in snapshots controls at the next bar; clear Solo before that baseline.
+      if (this.captureStatus === 'count-in') {
+        this.pendingLive.get(`${candidate.id}:solo`)?.();
+        this.pendingLive.delete(`${candidate.id}:solo`);
+        this.queuedSolo = withoutQueuedTrack(this.queuedSolo, candidate.id);
+        if (candidate.controls.solo) this.commitLiveControl(candidate.id, 'solo', false, 0);
+      } else {
+        this.toggleLiveSolo(candidate.id);
+      }
+    }
+    if (activating) await this.toggleLive(trackId);
+  }
+
   async toggleLive(trackId: string): Promise<void> {
     const track = this.composition.tracks.find((candidate) => candidate.id === trackId);
     if (!track || this.loading || this.loadingError || this.playingPerformance) return;

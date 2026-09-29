@@ -17,7 +17,7 @@ const shareLayeredComposition = async (page: Page): Promise<string> => {
   await page.getByRole('button', { name: 'Remix today’s starter' }).click();
   await page.getByRole('button', { name: 'Add a layer' }).click();
   await page.getByRole('button', { name: 'Share', exact: true }).click();
-  await page.getByRole('button', { name: 'Copy link' }).click();
+  await page.getByRole('button', { name: 'Share link' }).click();
   const fallback = page.locator('.fallback input');
   await expect(fallback).toHaveValue(/\S/u);
   return fallback.inputValue();

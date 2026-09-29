@@ -293,6 +293,104 @@ describe('EditorState', () => {
     state.destroy();
   });
 
+  it('selects an on pad during a take without queuing a switch or recording an event', async () => {
+    const engine = new FakeAudioEngine();
+    const state = new EditorState(engine, challengeForDate('2026-08-12'));
+    await state.loadAudio();
+    await state.selectOrActivateLive('track-0');
+    await state.selectOrActivateLive('track-2');
+    await state.startCapture();
+    engine.advance(384);
+    expect(state.captureStatus).toBe('recording');
+    const before = state.composition;
+    await state.selectOrActivateLive('track-0');
+    expect(state.selectedTrackId).toBe('track-0');
+    expect(state.liveStatus('track-0')).toBe('on');
+    expect(state.queuedLive).toEqual({});
+    expect(state.composition).toBe(before);
+    engine.advance(768);
+    state.stopCapture();
+    expect(state.performance?.events).toEqual([]);
+    state.destroy();
+  });
+
+  it('clears Solo at the next bar when activating another pad, without clearing it on selection', async () => {
+    const engine = new FakeAudioEngine();
+    const state = new EditorState(engine, challengeForDate('2026-08-12'));
+    await state.loadAudio();
+    await state.selectOrActivateLive('track-0');
+    state.toggleLiveSolo('track-0');
+    engine.advance(384);
+    expect(state.composition.tracks[0]!.controls.solo).toBe(true);
+
+    await state.selectOrActivateLive('track-0');
+    expect(state.composition.tracks[0]!.controls.solo).toBe(true);
+    await state.selectOrActivateLive('track-2');
+    expect(state.liveStatus('track-2')).toBe('queued-on');
+    expect(state.queuedSolo['track-0']).toBe(false);
+    engine.advance(768);
+    expect(state.composition.tracks[0]!.controls.solo).toBe(false);
+    expect(state.liveStatus('track-2')).toBe('on');
+    state.destroy();
+  });
+
+  it('cancels a pending Solo-on when activating another pad', async () => {
+    const engine = new FakeAudioEngine();
+    const state = new EditorState(engine, challengeForDate('2026-08-12'));
+    await state.loadAudio();
+    await state.selectOrActivateLive('track-0');
+    state.toggleLiveSolo('track-0');
+    expect(state.queuedSolo['track-0']).toBe(true);
+    await state.selectOrActivateLive('track-2');
+    expect(state.queuedSolo).toEqual({});
+    engine.advance(384);
+    expect(state.composition.tracks[0]!.controls.solo).toBe(false);
+    expect(state.liveStatus('track-2')).toBe('on');
+    state.destroy();
+  });
+
+  it('clears Solo when selecting another on pad during a take', async () => {
+    const engine = new FakeAudioEngine();
+    const state = new EditorState(engine, challengeForDate('2026-08-12'));
+    await state.loadAudio();
+    await state.selectOrActivateLive('track-0');
+    await state.selectOrActivateLive('track-2');
+    state.toggleLiveSolo('track-2');
+    engine.advance(384);
+    await state.startCapture();
+    engine.advance(768);
+
+    await state.selectOrActivateLive('track-0');
+    expect(state.queuedSolo['track-2']).toBe(false);
+    expect(state.liveStatus('track-0')).toBe('on');
+    engine.advance(1152);
+    engine.advance(1200);
+    state.stopCapture();
+    expect(state.performance?.events).toEqual([
+      { tick: 384, trackId: 'track-2', kind: 'solo', value: false },
+    ]);
+    state.destroy();
+  });
+
+  it('clears Solo before count-in ends so the new pad is audible in the take', async () => {
+    const engine = new FakeAudioEngine();
+    const state = new EditorState(engine, challengeForDate('2026-08-12'));
+    await state.loadAudio();
+    await state.selectOrActivateLive('track-0');
+    state.toggleLiveSolo('track-0');
+    engine.advance(384);
+    await state.startCapture();
+    await state.selectOrActivateLive('track-2');
+    expect(state.composition.tracks[0]!.controls.solo).toBe(false);
+    engine.advance(768);
+    engine.advance(800);
+    state.stopCapture();
+    expect(state.performance?.composition.tracks[0]!.controls.solo).toBe(false);
+    expect(state.performance?.composition.tracks[2]!.clips.length).toBeGreaterThan(0);
+    expect(state.performance?.events).toEqual([]);
+    state.destroy();
+  });
+
   it('gives loop sounds a distinct moving pattern that stays inside the source', async () => {
     const engine = new FakeAudioEngine();
     const state = new EditorState(engine, challengeForDate('2026-08-12'));

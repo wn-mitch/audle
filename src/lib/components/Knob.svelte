@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   let {
     label,
     value,
@@ -89,6 +90,7 @@
     aria-valuemax={max}
     aria-valuemin={min}
     aria-valuenow={value}
+    aria-valuetext={valueText}
     {disabled}
     {max}
     {min}
@@ -111,10 +113,10 @@
   {#if dial && onReset && resetValue !== undefined}
     <button
       type="button"
-      class="dial-reset min-h-11 min-w-11 cursor-pointer border border-audle-outline-subtle bg-audle-control px-1 text-[0.65rem] font-bold text-audle-text hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:opacity-50"
+      class="dial-reset grid min-h-11 min-w-11 cursor-pointer place-items-center border border-audle-outline-subtle bg-audle-control p-1 text-audle-text hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:opacity-50"
       aria-label={`Reset ${label}`}
       disabled={disabled || value === resetValue}
-      onclick={onReset}>Reset</button
+      onclick={onReset}><Icon name="reset" size={16} /></button
     >
   {/if}
 </div>

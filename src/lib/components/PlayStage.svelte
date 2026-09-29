@@ -9,7 +9,15 @@
     TICKS_PER_BAR,
     TICKS_PER_SIXTEENTH,
   } from '../domain/model';
-  import { accentHitMark, flashHit, meterKick, motion, popOn, press, pulseBeat } from '../motion';
+  import {
+    accentHitMark,
+    flashHit,
+    motion,
+    popOn,
+    press,
+    pulseBeat,
+    subscribeFrame,
+  } from '../motion';
   import type { EditorState } from '../state/editor.svelte';
   import Icon from './Icon.svelte';
   import Knob from './Knob.svelte';
@@ -35,7 +43,10 @@
   const sample = $derived(selected ? sampleById(selected.sampleId) : undefined);
   const sourceIndex = $derived(tracks.findIndex((track) => track.sampleId === selected?.sampleId));
   const activeCount = $derived(
-    tracks.filter((track) => editor.liveStatus(track.id) === 'on').length,
+    tracks.filter((track) => {
+      const status = editor.liveStatus(track.id);
+      return status === 'on' || status === 'queued-off';
+    }).length,
   );
   const pattern = $derived(selected ? editor.livePattern(selected.id) : 'empty');
   const duration = $derived(
@@ -134,19 +145,20 @@
     const icon = stage.querySelector<HTMLElement>('.transport .icon');
     if (icon) pulseBeat([icon], { accent: beat % 4 === 0 });
   });
-  let progressFrame = 0;
-  const updateProgress = () => {
-    const total = editor.composition.bars * TICKS_PER_BAR;
-    if (stage && total)
-      stage.style.setProperty('--play-progress', String((editor.currentTick() % total) / total));
-    progressFrame = requestAnimationFrame(updateProgress);
-  };
-
   $effect(() => {
     if (!stage) return;
-    if (editor.playing && motion.allowed) progressFrame = requestAnimationFrame(updateProgress);
-    else stage.style.setProperty('--play-progress', '0');
-    return () => cancelAnimationFrame(progressFrame);
+    const trackCount = tracks.length;
+    const strips = stage.querySelectorAll<HTMLElement>('.timeline-progress');
+    if (strips.length !== trackCount) return;
+    const total = editor.composition.bars * TICKS_PER_BAR;
+    if (!editor.playing || !motion.allowed || !total) {
+      for (const strip of strips) strip.style.transform = 'scaleX(0)';
+      return;
+    }
+    return subscribeFrame(() => {
+      const progress = (editor.currentTick() % total) / total;
+      for (const strip of strips) strip.style.transform = `scaleX(${progress})`;
+    });
   });
 
   onMount(() =>
@@ -157,8 +169,6 @@
       );
       if (!object) return;
       flashHit(object, { strength: hit.kind === 'loop' ? 0.7 : 1 });
-      const meter = object.querySelector<HTMLElement>('.object-meter');
-      if (meter) meterKick(meter, { floor: 0.3 });
       const mark = object.querySelector<HTMLElement>(`.hit-mark[data-tick="${hit.tick}"]`);
       if (mark) accentHitMark(mark);
     }),
@@ -213,7 +223,7 @@
             status={editor.liveStatus(track.id)}
             selected={editor.selectedTrackId === track.id}
             disabled={editor.loading || !!editor.loadingError || editor.playingPerformance}
-            onToggle={(trackId) => void editor.toggleLive(trackId)}
+            onToggle={(trackId) => void editor.selectOrActivateLive(trackId)}
           />
         {/each}
       </div>
@@ -222,11 +232,11 @@
         aria-label="Selected sound controls"
         style={sourceIndex >= 0 ? `--source:var(--audle-source-${sourceIndex + 1})` : undefined}
       >
-        <div class="identity-row flex min-w-0 items-center justify-between gap-2.5">
-          <h2 class="min-w-0 truncate text-[1.35rem] leading-[1.25] tracking-[-0.035em]">
+        <div class="identity-row flex min-w-0 flex-wrap items-center justify-between gap-2.5">
+          <h2 class="min-w-0 flex-1 truncate text-[1.35rem] leading-[1.25] tracking-[-0.035em]">
             {selected ? selected.label : 'Pick a sound'}
           </h2>
-          <div class="identity-actions flex flex-none gap-1.5">
+          <div class="identity-actions flex flex-wrap gap-1.5 max-[540px]:w-full">
             <button
               type="button"
               class="hear-control inline-flex min-h-11 min-w-11 flex-none items-center gap-1.5 border border-audle-outline-subtle bg-audle-control px-2.5 text-[0.72rem] font-bold text-audle-text"
@@ -255,6 +265,27 @@
               >Solo {selected && (editor.queuedSolo[selected.id] ?? selected.controls.solo)
                 ? 'on'
                 : 'off'}{selected && editor.queuedSolo[selected.id] !== undefined
+                ? ' · next bar'
+                : ''}</button
+            >
+            <button
+              type="button"
+              class="live-control min-h-11 min-w-11 flex-none whitespace-nowrap border border-audle-outline-subtle bg-audle-control px-[9px] text-[0.72rem] font-bold text-audle-text"
+              aria-label={selected
+                ? `${selected.label}, ${editor.liveStatus(selected.id).startsWith('queued') ? 'queued ' : ''}${(editor.queuedLive[selected.id] ?? selected.controls.muted) ? 'turn on' : 'turn off'}`
+                : 'Turn selected sound on or off'}
+              aria-pressed={!!selected &&
+                !(editor.queuedLive[selected.id] ?? selected.controls.muted)}
+              disabled={!selected?.clips.length ||
+                editor.loading ||
+                !!editor.loadingError ||
+                editor.captureStatus === 'count-in' ||
+                editor.playingPerformance}
+              use:press
+              onclick={() => selected && void editor.toggleLive(selected.id)}
+              >{selected && (editor.queuedLive[selected.id] ?? selected.controls.muted)
+                ? 'On'
+                : 'Off'}{selected && editor.queuedLive[selected.id] !== undefined
                 ? ' · next bar'
                 : ''}</button
             >

@@ -83,7 +83,7 @@ test('starts and advances the transport after an explicit play gesture', async (
   await expect.poll(() => page.evaluate(() => window.__audleDebug?.transportTick() ?? 0)).toBe(0);
 });
 
-test('a Play tap starts audible music and a second tap switches it off on a bar', async ({
+test('a Play tap starts audible music and the selected switch turns it off on a bar', async ({
   page,
 }) => {
   await page.goto('/');
@@ -95,8 +95,13 @@ test('a Play tap starts audible music and a second tap switches it off on a bar'
   await expect.poll(() => outputRms(page)).toBeGreaterThan(0.000001);
 
   await sound.click();
+  await expect(sound).toHaveAttribute('aria-label', /on, select/);
+  await expect(sound).toHaveAttribute('aria-current', 'true');
+  await page.locator('.live-control').click();
   await expect(sound).toHaveAttribute('aria-label', /queued for next bar/);
-  await expect(sound).toHaveAttribute('aria-label', /off, turn on/, { timeout: 5000 });
+  await expect(sound).toHaveAttribute('aria-pressed', 'true');
+  await expect(sound).toHaveAttribute('aria-label', /off, select and turn on/, { timeout: 5000 });
+  await expect(sound).toHaveAttribute('aria-pressed', 'false');
   await expect.poll(() => persistedClipSignature(page, 'track-0')).not.toEqual([]);
 });
 
@@ -225,6 +230,121 @@ test('the share sheet exports a non-silent WAV from the live loop', async ({ pag
   expect(wav.subarray(44).some((byte) => byte !== 0)).toBe(true);
 });
 
+test('Share downloads distinct loop and switched-take MP4 files', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/');
+  await page.locator('.sound-object').first().click();
+  await page.getByRole('button', { name: 'Share', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Download take MP4' })).toHaveCount(0);
+  const [loop] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Download loop MP4' }).click(),
+  ]);
+  expect(loop.suggestedFilename()).toMatch(/-loop\.mp4$/u);
+  const loopBytes = await readFile(await loop.path());
+  expect(loopBytes.toString('ascii', 4, 8)).toBe('ftyp');
+  expect(loopBytes.length).toBeGreaterThan(10_000);
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+
+  await page.getByRole('button', { name: /Record a take/ }).click();
+  await expect(page.getByRole('button', { name: 'Save take' })).toBeVisible({ timeout: 6000 });
+  await page.locator('.live-control').click();
+  await expect(page.locator('.sound-object').first()).toHaveAttribute(
+    'aria-label',
+    /off, select and turn on/,
+    { timeout: 5000 },
+  );
+  await page.getByRole('button', { name: 'Save take' }).click();
+  await page.getByRole('button', { name: 'Share', exact: true }).click();
+  const [take] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Download take MP4' }).click(),
+  ]);
+  expect(take.suggestedFilename()).toMatch(/-take\.mp4$/u);
+  const takeBytes = await readFile(await take.path());
+  expect(takeBytes.toString('ascii', 4, 8)).toBe('ftyp');
+  expect(takeBytes.length).toBeGreaterThan(10_000);
+});
+
+test('unsupported H.264 reports an MP4-only error without disabling WAV', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(VideoEncoder, 'isConfigSupported', {
+      value: async (config: VideoEncoderConfig) => ({ config, supported: false }),
+    });
+  });
+  await page.goto('/');
+  await page.locator('.sound-object').first().click();
+  await page.getByRole('button', { name: 'Share', exact: true }).click();
+  await page.getByRole('button', { name: 'Download loop MP4' }).click();
+  await expect(page.getByRole('alert')).toContainText('cannot encode H.264');
+  const [wav] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Download loop WAV' }).click(),
+  ]);
+  expect((await readFile(await wav.path())).toString('ascii', 0, 4)).toBe('RIFF');
+});
+
+test('a sustained source fades through a take switch at the loop wrap', async ({ page }) => {
+  await page.goto('/');
+  const audio = await page.evaluate(async () => {
+    // The offline renderer needs the browser's Web Audio context, not Playwright's Node process.
+    const { challengeForDate } = await import('/src/lib/domain/challenge.ts');
+    const { renderWav } = await import('/src/lib/audio/export.ts');
+    const challenge = challengeForDate('2026-08-12');
+    const controls = {
+      gainDb: 0,
+      pan: 0,
+      tuneSemitones: 0,
+      cutoffHz: 18000,
+      space: 0,
+      echo: 0,
+      fuzz: 0,
+      muted: false,
+      solo: false,
+    };
+    const tracks = challenge.sampleIds.map((sampleId, index) => ({
+      id: `track-${index}`,
+      sampleId,
+      label: sampleId,
+      controls: { ...controls },
+      clips:
+        index === 4
+          ? [0, 384, 768, 1152].map((startTick, clipIndex) => ({
+              id: `clip-${clipIndex}`,
+              kind: 'loop' as const,
+              startTick,
+              lengthTicks: 384,
+              sourceOffsetTick: 96,
+            }))
+          : [],
+    }));
+    const composition = { version: 1 as const, challenge, bars: 4 as const, tracks };
+    const take = {
+      version: 1 as const,
+      composition,
+      durationTicks: 8 * 384,
+      events: [{ tick: 4 * 384, trackId: 'track-4', kind: 'mute' as const, value: true }],
+    };
+    const bytes = new DataView(await (await renderWav(composition, take)).arrayBuffer());
+    const rate = bytes.getUint32(24, true);
+    const boundary = Math.round((take.events[0]!.tick * 60 * rate) / (96 * challenge.bpm));
+    const sample = (index: number) => bytes.getInt16(44 + index * 4, true) / 32768;
+    const rms = (start: number, length: number) => {
+      let squared = 0;
+      for (let index = start; index < start + length; index++) squared += sample(index) ** 2;
+      return Math.sqrt(squared / length);
+    };
+    return {
+      before: rms(boundary - rate / 4, rate / 4),
+      atSwitch: rms(boundary, Math.round(rate / 200)),
+      after: rms(boundary + rate / 2, rate / 4),
+    };
+  });
+  expect(audio.before).toBeGreaterThan(0.005);
+  expect(audio.atSwitch).toBeGreaterThan(0.001);
+  expect(audio.after).toBeLessThan(0.0001);
+});
+
 test('Space, Echo, and Fuzz each change the exported sound', async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto('/');
@@ -300,14 +420,18 @@ test('Offset persists sparse one-shot hits one sixteenth at a time', async ({ pa
 test('saving a take from Play offers to play and share it', async ({ page }) => {
   await page.goto('/');
   await page.locator('.sound-object').nth(8).click();
+  await page.locator('.sound-object').nth(12).click();
   const record = page.getByRole('button', { name: /Record a take/ });
   await expect(record).toBeEnabled();
   await record.click();
   await expect(page.getByRole('button', { name: 'Cancel count-in' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save take' })).toBeVisible({ timeout: 6000 });
   await page.locator('.sound-object').nth(12).click();
+  await expect(page.locator('.sound-object').nth(12)).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('.sound-object').nth(8).click();
+  await expect(page.locator('.sound-object').nth(8)).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Save take' }).click();
   await expect(page.getByText('Take saved.')).toBeVisible();
   await page.getByRole('button', { name: 'Share it' }).click();
-  await expect(page.getByRole('button', { name: 'Copy take link' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Share take link' })).toBeVisible();
 });

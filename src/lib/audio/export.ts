@@ -1,4 +1,5 @@
 import * as Tone from 'tone';
+import { HANDOFF_SECONDS, handoffLoop, handoffTrack } from './handoff';
 import { sampleById } from '../data/samples';
 import { shortestSemitoneInterval } from '../domain/challenge';
 import { TICKS_PER_QUARTER, type CompositionV1, type TrackControls } from '../domain/model';
@@ -40,10 +41,10 @@ const asWav = (buffer: AudioBuffer): Blob => {
 };
 
 /** Render the same sources and control automation used during live playback. */
-export const renderWav = async (
+export const renderAudioBuffer = async (
   composition: CompositionV1,
   performance?: PerformanceV1,
-): Promise<Blob> => {
+): Promise<AudioBuffer> => {
   const source = performance?.composition ?? composition;
   const durationTicks = performance?.durationTicks ?? source.bars * 384;
   const buffers = new Map(
@@ -57,6 +58,7 @@ export const renderWav = async (
   );
   const effects: Array<Tone.Distortion | Tone.Reverb | Tone.FeedbackDelay> = [];
   const reverbs: Tone.Reverb[] = [];
+  const envelopes: Tone.Gain[] = [];
   try {
     const result = await Tone.Offline(
       (offlineContext) => {
@@ -69,15 +71,14 @@ export const renderWav = async (
         }).toDestination();
         const controls = new Map(source.tracks.map((track) => [track.id, { ...track.controls }]));
         const gains = new Map<string, Tone.Gain>();
-        const setGains = (time: number) => {
+        const setGains = (time: number, ramp: boolean) => {
           const soloed = [...controls.values()].some((value) => value.solo);
           for (const [id, value] of controls) {
-            gains
-              .get(id)
-              ?.gain.setValueAtTime(
-                value.muted || (soloed && !value.solo) ? 0 : 10 ** (value.gainDb / 20),
-                time,
-              );
+            const gain = gains.get(id);
+            if (!gain) continue;
+            const next = value.muted || (soloed && !value.solo) ? 0 : 10 ** (value.gainDb / 20);
+            if (ramp) handoffTrack(gain, next, time);
+            else gain.gain.setValueAtTime(next, time);
           }
         };
         for (const track of source.tracks) {
@@ -88,6 +89,7 @@ export const renderWav = async (
           });
           const panner = new Tone.Panner({ context: offlineContext, pan: track.controls.pan });
           const gain = new Tone.Gain({ context: offlineContext });
+          gains.set(track.id, gain);
           const trackEffects: Array<Tone.Distortion | Tone.Reverb | Tone.FeedbackDelay> = [];
           if (track.controls.fuzz > 0) {
             const fuzz = new Tone.Distortion({
@@ -141,15 +143,17 @@ export const renderWav = async (
                   : 0;
                 player.playbackRate = source.challenge.bpm / sample.sourceBpm;
                 player.detune = (normalized + track.controls.tuneSemitones) * 100;
-                player.connect(filter);
+                const envelope = new Tone.Gain({ context: offlineContext, gain: 0 });
+                envelopes.push(envelope);
+                player.chain(envelope, filter);
                 const length = secondsFor(
                   Math.min(clip.lengthTicks, durationTicks - startTick),
                   source.challenge.bpm,
                 );
                 const offset = secondsFor(clip.sourceOffsetTick, sample.sourceBpm);
                 transport.scheduleOnce((time) => {
-                  player.start(time, offset, length);
-                  player.stop(time + length);
+                  handoffLoop(envelope, time, length);
+                  player.start(time, offset, length + HANDOFF_SECONDS);
                 }, `${startTick}i`);
               } else if (clip.kind === 'hit' && sample.kind === 'one-shot') {
                 const interval = secondsFor(24 / clip.ratchet, source.challenge.bpm);
@@ -166,14 +170,21 @@ export const renderWav = async (
             }
           }
         }
-        setGains(0);
+        setGains(0, false);
+        const eventsByTick = new Map<number, NonNullable<typeof performance>['events']>();
         for (const event of performance?.events ?? []) {
+          const events = eventsByTick.get(event.tick) ?? [];
+          events.push(event);
+          eventsByTick.set(event.tick, events);
+        }
+        for (const [tick, events] of eventsByTick) {
           transport.scheduleOnce((time) => {
-            const value = controls.get(event.trackId) as TrackControls | undefined;
-            if (!value) return;
-            value[event.kind === 'mute' ? 'muted' : 'solo'] = event.value;
-            setGains(time);
-          }, `${event.tick}i`);
+            for (const event of events) {
+              const value = controls.get(event.trackId) as TrackControls | undefined;
+              if (value) value[event.kind === 'mute' ? 'muted' : 'solo'] = event.value;
+            }
+            setGains(time, true);
+          }, `${tick}i`);
         }
         transport.start();
         return Promise.all(reverbs.map((reverb) => reverb.ready)).then(() => undefined);
@@ -184,9 +195,15 @@ export const renderWav = async (
     );
     const audio = result.get();
     if (!audio) throw new Error('Audio rendering returned no buffer.');
-    return asWav(audio);
+    return audio;
   } finally {
     for (const effect of effects) effect.dispose();
+    for (const envelope of envelopes) envelope.dispose();
     for (const buffer of buffers.values()) buffer.dispose();
   }
 };
+
+export const renderWav = async (
+  composition: CompositionV1,
+  performance?: PerformanceV1,
+): Promise<Blob> => asWav(await renderAudioBuffer(composition, performance));

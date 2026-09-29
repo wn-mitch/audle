@@ -1,17 +1,25 @@
+<script module lang="ts">
+  const SIZE = 60;
+  const UNIT_CIRCLE = Array.from({ length: 64 }, (_, index) => {
+    const angle = (index * Math.PI) / 32 - Math.PI / 2;
+    return { x: Math.cos(angle), y: Math.sin(angle) };
+  });
+</script>
+
 <script lang="ts">
   import { animate } from 'animejs';
   import { onMount } from 'svelte';
+  import { subscribeFrame } from '../motion/clock';
   import { DURATION, EASE } from '../motion/config';
   import { motion } from '../motion/preference.svelte';
   import type { EditorState } from '../state/editor.svelte';
 
   let { editor, trackId }: { editor: EditorState; trackId: string } = $props();
-  const SIZE = 60;
   let canvas: HTMLCanvasElement;
   let halo: HTMLSpanElement;
   let context: CanvasRenderingContext2D | null = null;
   let ready = $state(false);
-  let frame = 0;
+  let lastPaint = -Infinity;
   let pulse: ReturnType<typeof animate> | undefined;
 
   const paint = (live: boolean) => {
@@ -25,22 +33,17 @@
     context.clearRect(0, 0, SIZE, SIZE);
     context.globalAlpha = live ? 1 : 0.45;
     context.beginPath();
-    for (let index = 0; index < 64; index += 1) {
-      const angle = (index * Math.PI) / 32 - Math.PI / 2;
-      const sample = samples?.[Math.floor((index * samples.length) / 64)] ?? 0;
+    for (let index = 0; index < UNIT_CIRCLE.length; index += 1) {
+      const sample = samples?.[Math.floor((index * samples.length) / UNIT_CIRCLE.length)] ?? 0;
       const radius = 24 + Math.max(-5, Math.min(5, sample * gain));
-      const x = SIZE / 2 + Math.cos(angle) * radius;
-      const y = SIZE / 2 + Math.sin(angle) * radius;
+      const point = UNIT_CIRCLE[index];
+      const x = SIZE / 2 + point.x * radius;
+      const y = SIZE / 2 + point.y * radius;
       if (index === 0) context.moveTo(x, y);
       else context.lineTo(x, y);
     }
     context.closePath();
     context.stroke();
-  };
-
-  const draw = () => {
-    paint(true);
-    frame = requestAnimationFrame(draw);
   };
 
   onMount(() => {
@@ -68,7 +71,6 @@
       });
     });
     return () => {
-      cancelAnimationFrame(frame);
       pulse?.cancel();
       unsubscribe();
     };
@@ -76,14 +78,17 @@
 
   $effect(() => {
     if (!ready) return;
-    if (editor.playing && motion.allowed && context) frame = requestAnimationFrame(draw);
-    else {
-      cancelAnimationFrame(frame);
-      pulse?.cancel();
-      paint(false);
-      halo.style.removeProperty('opacity');
+    if (editor.playing && motion.allowed && context) {
+      lastPaint = -Infinity;
+      return subscribeFrame((now) => {
+        if (now - lastPaint < 1000 / 30) return;
+        lastPaint = now;
+        paint(true);
+      });
     }
-    return () => cancelAnimationFrame(frame);
+    pulse?.cancel();
+    paint(false);
+    halo.style.removeProperty('opacity');
   });
 </script>
 
