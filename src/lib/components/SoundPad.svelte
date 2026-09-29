@@ -26,6 +26,7 @@
     onToggle: (trackId: string) => void;
   } = $props();
   const sample = $derived(sampleById(track.sampleId));
+  const sounding = $derived(status === 'on' || status === 'queued-off');
   const totalTicks = $derived(bars * TICKS_PER_BAR);
   const hitTicks = $derived(
     track.clips.flatMap((clip) =>
@@ -42,17 +43,18 @@
 <button
   type="button"
   class="sound-object relative flex min-h-12 min-w-0 cursor-pointer flex-col items-stretch justify-between overflow-hidden border border-audle-outline-subtle px-[10px] py-2 text-left text-audle-text max-[540px]:px-[6px] max-[540px]:py-[5px] disabled:cursor-not-allowed disabled:opacity-[0.66] motion-reduce:transition-none"
-  class:active={status === 'on'}
+  class:active={sounding}
   class:selected
   class:pending={status.startsWith('queued')}
-  data-active={status === 'on'}
+  data-active={sounding}
   data-track-id={track.id}
   style={`--source:var(--audle-source-${index + 1})`}
   use:enter={{ index, columns: 4, once: 'play-grid' }}
   use:press={{ disabled }}
   use:popOn={selected}
-  aria-label={`${sample?.label ?? track.label}, ${sample?.role ?? 'sound'}, ${status === 'empty' ? 'add to loop' : status === 'off' ? 'off, turn on' : status === 'on' ? 'on, turn off' : 'queued for next bar'}`}
-  aria-pressed={status === 'on'}
+  aria-label={`${sample?.label ?? track.label}, ${sample?.role ?? 'sound'}, ${status === 'empty' ? 'add to loop' : status === 'off' ? 'off, select and turn on' : status === 'on' ? 'on, select' : status === 'queued-off' ? 'on, queued for next bar to turn off, select' : 'off, queued for next bar to turn on, select'}`}
+  aria-pressed={sounding}
+  aria-current={selected ? 'true' : undefined}
   {disabled}
   onclick={() => onToggle(track.id)}
 >
@@ -70,7 +72,7 @@
     class="glyph relative grid min-h-10 origin-center place-items-center max-[540px]:min-h-[34px]"
     aria-hidden="true"
   >
-    {#if status === 'on'}<PadWaveform {editor} trackId={track.id} />{/if}
+    {#if sounding}<PadWaveform {editor} trackId={track.id} />{/if}
     {#if index < 2}<span class="shape rings"><i></i><i></i><i></i></span>
     {:else if index < 4}<span class="shape coils"><i></i><i></i><i></i></span>
     {:else if index < 6}<span class="shape prism"><i></i><i></i></span>
@@ -84,7 +86,6 @@
     ><strong class="truncate text-[0.72rem] leading-[1.2]">{sample?.label ?? track.label}</strong
     >{#if status.startsWith('queued')}<span>NEXT BAR</span>{/if}</span
   >
-  <span class="object-meter" aria-hidden="true"></span>
   <span
     class="hit-timeline relative mt-1 block h-2 w-full flex-none overflow-hidden bg-audle-well-raised max-[540px]:mt-[2px] max-[540px]:h-[7px]"
     aria-hidden="true"
@@ -336,23 +337,8 @@
     inset: 0;
     background: color-mix(in srgb, var(--audle-accent) 14%, transparent);
     border-inline-end: 2px solid var(--audle-accent);
-    transform: scaleX(var(--play-progress, 0));
-    transform-origin: left;
-  }
-  .object-meter {
-    position: absolute;
-    inset: auto auto 0 0;
-    inline-size: 100%;
-    block-size: 3px;
-    background: oklch(var(--source));
-    transform: scaleX(var(--level, 0));
-    transform-origin: left;
-  }
-  .active .object-meter {
-    --level: 0.3;
-  }
-  .sound-object:not(.active) .object-meter {
     transform: scaleX(0);
+    transform-origin: left;
   }
   @media (max-width: 540px) {
     .shape {

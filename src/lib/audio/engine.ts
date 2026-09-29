@@ -1,6 +1,7 @@
 import * as Tone from 'tone';
 import { sampleById } from '../data/samples';
 import { shortestSemitoneInterval } from '../domain/challenge';
+import { HANDOFF_SECONDS, handoffLoop, handoffTrack } from './handoff';
 import {
   TICKS_PER_QUARTER,
   type ChallengeSnapshot,
@@ -100,7 +101,10 @@ export class ToneAudioEngine implements AudioEngine {
   private performanceControls: Map<string, TrackControls> | undefined;
   private readonly buffers = new Map<string, Tone.ToneAudioBuffer>();
   private readonly nodes = new Map<string, TrackNodes>();
-  private readonly soundingSources = new Map<SoundingSource, string>();
+  private readonly soundingSources = new Map<
+    SoundingSource,
+    { trackId: string; envelope?: Tone.Gain }
+  >();
   private composition: CompositionV1 | undefined;
   private part: Tone.Part<[string, ScheduledEvent]> | undefined;
   private structureSignature = '';
@@ -198,7 +202,10 @@ export class ToneAudioEngine implements AudioEngine {
     this.transport.ticks = 0;
     this.loopRounds = 0;
     this.lastLoopTick = 0;
-    for (const source of this.soundingSources.keys()) source.dispose();
+    for (const [source, { envelope }] of this.soundingSources) {
+      source.dispose();
+      envelope?.dispose();
+    }
     this.soundingSources.clear();
     this.emitTransport();
   }
@@ -259,7 +266,7 @@ export class ToneAudioEngine implements AudioEngine {
       sample.rootPitchClass,
       this.composition.challenge.key.root,
     );
-    for (const [source, sourceTrackId] of this.soundingSources) {
+    for (const [source, { trackId: sourceTrackId }] of this.soundingSources) {
       if (sourceTrackId === trackId && source instanceof Tone.GrainPlayer)
         source.detune = (normalized + controls.tuneSemitones) * 100;
     }
@@ -349,11 +356,13 @@ export class ToneAudioEngine implements AudioEngine {
         next[event.kind === 'mute' ? 'muted' : 'solo'] = event.value;
         const soloed = [...controls.values()].some((value) => value.solo);
         for (const [trackId, values] of controls) {
-          const gain = this.nodes.get(trackId)?.gain.gain;
-          gain?.setValueAtTime(
-            values.muted || (soloed && !values.solo) ? 0 : 10 ** (values.gainDb / 20),
-            time,
-          );
+          const gain = this.nodes.get(trackId)?.gain;
+          if (gain)
+            handoffTrack(
+              gain,
+              values.muted || (soloed && !values.solo) ? 0 : 10 ** (values.gainDb / 20),
+              time,
+            );
         }
       }, transportTime(event.tick));
       this.performanceEvents.add(id);
@@ -402,7 +411,8 @@ export class ToneAudioEngine implements AudioEngine {
       audioState: Tone.getContext().state,
       transportTick: this.transport.ticks,
       outputRms: frameCount === 0 ? 0 : Math.sqrt(squared / frameCount),
-      activeVoiceCount: new Set(this.soundingSources.values()).size,
+      activeVoiceCount: new Set([...this.soundingSources.values()].map(({ trackId }) => trackId))
+        .size,
     };
   }
 
@@ -495,7 +505,7 @@ export class ToneAudioEngine implements AudioEngine {
           ? 0
           : 10 ** (track.controls.gainDb / 20);
       if (time === undefined) nodes.gain.gain.value = gain;
-      else nodes.gain.gain.setValueAtTime(gain, time);
+      else handoffTrack(nodes.gain, gain, time);
     }
   }
 
@@ -568,19 +578,20 @@ export class ToneAudioEngine implements AudioEngine {
         : 0;
       source.playbackRate = composition.challenge.bpm / sample.sourceBpm;
       source.detune = (normalized + track.controls.tuneSemitones) * 100;
-      source.connect(nodes.filter);
-      this.trackSource(source, track.id);
+      const envelope = new Tone.Gain(0);
+      source.chain(envelope, nodes.filter);
       const offsetSeconds =
         (event.clip.sourceOffsetTick * 60) / (TICKS_PER_QUARTER * sample.sourceBpm);
       const durationSeconds =
         (event.clip.lengthTicks * 60) / (TICKS_PER_QUARTER * composition.challenge.bpm);
+      this.trackSource(source, track.id, envelope, time + durationSeconds + HANDOFF_SECONDS);
       this.announceHit(
         time,
         { trackId: track.id, sampleId: sample.id, kind: 'loop', tick: event.clip.startTick, time },
         track,
       );
-      source.start(time, offsetSeconds, durationSeconds);
-      source.stop(time + durationSeconds);
+      handoffLoop(envelope, time, durationSeconds);
+      source.start(time, offsetSeconds, durationSeconds + HANDOFF_SECONDS);
       return;
     }
 
@@ -610,11 +621,23 @@ export class ToneAudioEngine implements AudioEngine {
     }
   }
 
-  private trackSource(source: SoundingSource, trackId: string): void {
-    this.soundingSources.set(source, trackId);
+  private trackSource(
+    source: SoundingSource,
+    trackId: string,
+    envelope?: Tone.Gain,
+    retireAt?: number,
+  ): void {
+    this.soundingSources.set(source, { trackId, envelope });
     source.onstop = () => {
-      this.soundingSources.delete(source);
-      source.dispose();
+      const retire = () => {
+        if (!this.soundingSources.delete(source)) return;
+        source.dispose();
+        envelope?.dispose();
+      };
+      // GrainPlayer reports its stop from Tone's lookahead clock, before the audio reaches the
+      // 10ms fade. Retiring on the draw clock keeps the outgoing grain audible until it ends.
+      if (retireAt === undefined) retire();
+      else Tone.getDraw().schedule(retire, retireAt);
     };
   }
 }

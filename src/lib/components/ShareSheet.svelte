@@ -1,5 +1,7 @@
 <script lang="ts">
   import { renderWav } from '../audio/export';
+  import { renderMp4, UnsupportedVideoError } from '../video/export';
+  import { createVideoPainter } from '../video/scene';
   import type { CompositionV1 } from '../domain/model';
   import type { PerformanceV1 } from '../domain/performance';
   import { press } from '../motion';
@@ -29,7 +31,7 @@
   } = $props();
   let dialog: HTMLDialogElement;
   let fallbackInput: HTMLInputElement | undefined = $state(undefined);
-  let exporting = $state(false);
+  let exporting = $state<'wav' | 'mp4' | undefined>();
   let exportError = $state('');
   const hasLoop = $derived(editor.composition.tracks.some((track) => track.clips.length));
   const takeSeconds = $derived(
@@ -53,23 +55,42 @@
     }
   });
 
-  const download = async (take = false) => {
-    exporting = true;
+  const saveDownload = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+
+  const download = async (format: 'wav' | 'mp4', take = false) => {
+    if (exporting) return;
+    const performance = take ? editor.performance : undefined;
+    if (take && !performance) return;
+    const composition = editor.composition;
+    exporting = format;
     exportError = '';
     try {
-      const blob = await renderWav(editor.composition, take ? editor.performance : undefined);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `audle-${editor.challenge.date}-${take ? 'take' : 'loop'}.wav`;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch {
-      exportError = 'The audio could not be rendered. Try again.';
+      const blob =
+        format === 'mp4'
+          ? await renderMp4(composition, performance, createVideoPainter())
+          : await renderWav(composition, performance);
+      saveDownload(
+        blob,
+        `audle-${performance?.composition.challenge.date ?? composition.challenge.date}-${take ? 'take' : 'loop'}.${format}`,
+      );
+    } catch (error) {
+      exportError =
+        format === 'wav'
+          ? 'The audio could not be rendered. Try again.'
+          : error instanceof UnsupportedVideoError
+            ? error.message
+            : `The video could not be rendered. ${error instanceof Error ? error.message : 'Try again.'}`;
     } finally {
-      exporting = false;
+      exporting = undefined;
     }
   };
 </script>
@@ -105,19 +126,31 @@
         <button
           type="button"
           class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-accent bg-audle-accent px-3.5 font-bold text-audle-accent-ink enabled:hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:border-audle-disabled disabled:bg-audle-disabled disabled:text-audle-disabled-ink disabled:shadow-none [box-shadow:var(--audle-control-rest)]"
-          disabled={!hasLoop}
+          disabled={!hasLoop || !!exporting}
           use:press
-          onclick={onShareLoop}><Icon name="share" /> Copy link</button
+          onclick={onShareLoop}><Icon name="share" /> Share link</button
         >
         <button
           type="button"
           aria-label="Download loop WAV"
           class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-outline bg-audle-control px-3.5 font-bold text-audle-text enabled:hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:border-audle-disabled disabled:bg-audle-disabled disabled:text-audle-disabled-ink disabled:shadow-none [box-shadow:var(--audle-control-rest)]"
-          disabled={!hasLoop || exporting}
+          disabled={!hasLoop || !!exporting}
           use:press
-          onclick={() => void download()}><Icon name="download" /> Download WAV</button
+          onclick={() => void download('wav')}><Icon name="download" /> Download WAV</button
+        >
+        <button
+          type="button"
+          aria-label="Download loop MP4"
+          aria-describedby="share-video-description"
+          class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-outline bg-audle-control px-3.5 font-bold text-audle-text enabled:hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:border-audle-disabled disabled:bg-audle-disabled disabled:text-audle-disabled-ink disabled:shadow-none [box-shadow:var(--audle-control-rest)]"
+          disabled={!hasLoop || !!exporting}
+          use:press
+          onclick={() => void download('mp4')}><Icon name="download" /> Download MP4</button
         >
       </div>
+      <p id="share-video-description" class="m-0 mt-2 text-[0.75rem] text-audle-text-muted">
+        Square video of the sixteen sounds and their moving, unlabeled timeline. No editor controls.
+      </p>
     </section>
 
     <section aria-labelledby="share-take-title">
@@ -143,26 +176,38 @@
           >
           <button
             type="button"
-            class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-accent bg-audle-accent px-3.5 font-bold text-audle-accent-ink enabled:hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:border-audle-disabled disabled:bg-audle-disabled disabled:text-audle-disabled-ink disabled:shadow-none [box-shadow:var(--audle-control-rest)]"
+            disabled={!!exporting}
             use:press
             onclick={() => onShareTake(editor.performance!)}
-            ><Icon name="share" /> Copy take link</button
+            ><Icon name="share" /> Share take link</button
           >
           <button
             type="button"
             aria-label="Download take WAV"
             class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-outline bg-audle-control px-3.5 font-bold text-audle-text enabled:hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:border-audle-disabled disabled:bg-audle-disabled disabled:text-audle-disabled-ink disabled:shadow-none [box-shadow:var(--audle-control-rest)]"
-            disabled={exporting}
+            disabled={!!exporting}
             use:press
-            onclick={() => void download(true)}><Icon name="download" /> Download WAV</button
+            onclick={() => void download('wav', true)}><Icon name="download" /> Download WAV</button
+          >
+          <button
+            type="button"
+            aria-label="Download take MP4"
+            aria-describedby="share-take-video-description"
+            class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-audle-outline bg-audle-control px-3.5 font-bold text-audle-text enabled:hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:border-audle-disabled disabled:bg-audle-disabled disabled:text-audle-disabled-ink disabled:shadow-none [box-shadow:var(--audle-control-rest)]"
+            disabled={!!exporting}
+            use:press
+            onclick={() => void download('mp4', true)}><Icon name="download" /> Download MP4</button
           >
           <button
             type="button"
             class="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-transparent bg-transparent px-3.5 font-bold text-audle-text-muted shadow-none enabled:hover:bg-audle-control-hover disabled:cursor-not-allowed disabled:border-audle-disabled disabled:bg-audle-disabled disabled:text-audle-disabled-ink disabled:shadow-none"
-            disabled={editor.playingPerformance}
+            disabled={editor.playingPerformance || !!exporting}
             onclick={() => editor.discardCapture()}>Discard take</button
           >
         </div>
+        <p id="share-take-video-description" class="m-0 mt-2 text-[0.75rem] text-audle-text-muted">
+          The square video follows your saved mute and solo switches.
+        </p>
       {:else}
         <p class="m-0 mb-2.5 text-sm leading-6 text-audle-text-muted">
           Press Record on the Play field, switch sounds on and off as the loop runs, then save.
@@ -179,6 +224,7 @@
           Copy this link
         </h3>
         <input
+          aria-labelledby="share-fallback-title"
           bind:this={fallbackInput}
           class="min-h-11 w-full border border-audle-outline bg-audle-well px-2 font-mono text-[0.8rem] text-audle-text"
           readonly
@@ -190,7 +236,7 @@
         {exportError}
       </p>{/if}
     {#if exporting}<p class="m-0 text-[0.78rem] text-audle-text-dim" role="status">
-        Rendering audio in your browser…
+        Rendering {exporting === 'mp4' ? 'video' : 'audio'} in your browser…
       </p>{/if}
 
     {#if history.length}

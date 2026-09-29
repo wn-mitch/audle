@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { RotateCcw } from '@lucide/svelte';
   /** One 16px stroke icon set, so every control shares a vocabulary instead of text glyphs. */
   export type IconName =
     | 'play'
@@ -10,6 +11,7 @@
     | 'arrow-left'
     | 'chevron-down'
     | 'undo'
+    | 'reset'
     | 'redo'
     | 'spark'
     | 'check'
@@ -20,7 +22,7 @@
 
   let { name, size = 16 }: { name: IconName; size?: number } = $props();
 
-  const paths: Record<IconName, string> = {
+  const paths: Record<Exclude<IconName, 'reset'>, string> = {
     play: 'M5 3.5v9l7.5-4.5z',
     stop: 'M4 4h8v8H4z',
     record: 'M8 4.2a3.8 3.8 0 1 1 0 7.6 3.8 3.8 0 0 1 0-7.6z',
@@ -41,17 +43,21 @@
   const filled = new Set<IconName>(['play', 'stop', 'record', 'spark', 'hit']);
 </script>
 
-<svg
-  aria-hidden="true"
-  class="icon shrink-0 align-[-0.15em]"
-  width={size}
-  height={size}
-  viewBox="0 0 16 16"
-  fill={filled.has(name) ? 'currentColor' : 'none'}
-  stroke="currentColor"
-  stroke-width="1.6"
-  stroke-linecap="round"
-  stroke-linejoin="round"
->
-  <path d={paths[name]} />
-</svg>
+{#if name === 'reset'}
+  <RotateCcw aria-hidden="true" class="icon shrink-0 align-[-0.15em]" {size} strokeWidth={2.4} />
+{:else}
+  <svg
+    aria-hidden="true"
+    class="icon shrink-0 align-[-0.15em]"
+    width={size}
+    height={size}
+    viewBox="0 0 16 16"
+    fill={filled.has(name) ? 'currentColor' : 'none'}
+    stroke="currentColor"
+    stroke-width="1.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d={paths[name]} />
+  </svg>
+{/if}

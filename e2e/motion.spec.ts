@@ -44,8 +44,8 @@ test('muted tracks stay silent to hit listeners', async ({ page }) => {
   const sound = page.locator('.sound-object').nth(8);
   await sound.click();
   await expect.poll(() => hitCount(page)).toBeGreaterThan(0);
-  await sound.click();
-  await expect(sound).toHaveAttribute('aria-label', /off, turn on/, { timeout: 5000 });
+  await page.locator('.live-control').click();
+  await expect(sound).toHaveAttribute('aria-label', /off, select and turn on/, { timeout: 5000 });
   const settled = await hitCount(page);
   await page.waitForTimeout(900);
   expect(await hitCount(page)).toBe(settled);
@@ -54,20 +54,22 @@ test('muted tracks stay silent to hit listeners', async ({ page }) => {
 test('pad timelines move with transport and reset on stop', async ({ page }) => {
   await page.goto('/');
   const sound = page.locator('.sound-object').nth(8);
-  const progress = () =>
-    page
-      .locator('.stage-frame')
-      .evaluate((stage) =>
-        Number.parseFloat((stage as HTMLElement).style.getPropertyValue('--play-progress')),
-      );
+  const otherActive = page.locator('.sound-object').nth(9);
+  const width = (pad: typeof sound) =>
+    pad.locator('.timeline-progress').evaluate((element) => element.getBoundingClientRect().width);
   await expect(sound.locator('.hit-mark')).toHaveCount(0);
   await sound.click();
+  await otherActive.click();
   await expect(sound.locator('.hit-mark')).toHaveCount(await steadyKickHits(page));
-  await expect.poll(progress).toBeGreaterThan(0);
-  const first = await progress();
-  await expect.poll(progress).not.toBe(first);
+  await expect.poll(() => width(sound)).toBeGreaterThan(0);
+  await expect.poll(() => width(otherActive)).toBeGreaterThan(0);
+  const first = await width(sound);
+  const second = await width(otherActive);
+  await expect.poll(() => width(sound)).toBeGreaterThan(first);
+  await expect.poll(() => width(otherActive)).toBeGreaterThan(second);
   await page.getByRole('button', { name: 'Stop loop' }).click();
-  await expect.poll(progress).toBe(0);
+  await expect.poll(() => width(sound)).toBe(0);
+  await expect.poll(() => width(otherActive)).toBe(0);
   await expect(sound.locator('.hit-mark')).toHaveCount(await steadyKickHits(page));
   const other = page.locator('.sound-object').first();
   const height = (pad: typeof sound) =>
@@ -91,11 +93,8 @@ test('under reduced motion, selected, pressed, queued, and focused pads keep sta
   await page.waitForTimeout(150);
   await expect(sound).toHaveAttribute('aria-pressed', 'true');
   await expect(sound.locator('.hit-mark')).toHaveCount(await steadyKickHits(page));
-  expect(
-    await page
-      .locator('.stage-frame')
-      .evaluate((stage) => (stage as HTMLElement).style.getPropertyValue('--play-progress')),
-  ).toBe('0');
+  const progress = sound.locator('.timeline-progress');
+  expect(await progress.evaluate((element) => element.getBoundingClientRect().width)).toBe(0);
   expect(
     await sound
       .locator('.pad-waveform canvas')
@@ -108,6 +107,8 @@ test('under reduced motion, selected, pressed, queued, and focused pads keep sta
   const pressedTransform = await sound.evaluate((pad) => getComputedStyle(pad).transform);
   expect(pressedTransform).toBe('none');
   await page.mouse.up();
+  await expect(sound).toHaveAttribute('aria-label', /on, select/);
+  await page.locator('.live-control').click();
   await expect(sound).toHaveAttribute('aria-label', /queued for next bar/);
 
   await sound.focus();
@@ -125,10 +126,7 @@ test('under reduced motion, selected, pressed, queued, and focused pads keep sta
     )
     .toEqual({ focused: true, outline: 'solid' });
   await keyboardFocusedPad.press('Space');
-  await expect(keyboardFocusedPad).toHaveAttribute(
-    'aria-label',
-    /queued for next bar|on, turn off/u,
-  );
+  await expect(keyboardFocusedPad).toHaveAttribute('aria-label', /queued for next bar|on, select/u);
 
   const transforms = await page.evaluate(() => {
     const object = document.querySelectorAll<HTMLElement>('.sound-object')[8]!;
@@ -139,10 +137,11 @@ test('under reduced motion, selected, pressed, queued, and focused pads keep sta
   });
   expect(transforms).toEqual(['none', 'none']);
   await page.waitForTimeout(700);
+  expect(await progress.evaluate((element) => element.getBoundingClientRect().width)).toBe(0);
   await expect(page.locator('.sound-object[data-hit]')).toHaveCount(0);
 });
 
-test('an audible hit flashes and meters only its owning pad', async ({ page }) => {
+test('an audible hit flashes only its owning pad', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/');
   const sound = page.locator('.sound-object').nth(8);
@@ -151,9 +150,8 @@ test('an audible hit flashes and meters only its owning pad', async ({ page }) =
   // Watch before the gesture: a hit flash is deliberately shorter than a polling interval.
   const observedMotion = page.evaluate(
     () =>
-      new Promise<{ hitTracks: string[]; meteredTracks: string[] }>((resolve) => {
+      new Promise<string[]>((resolve) => {
         const hitTracks = new Set<string>();
-        const meteredTracks = new Set<string>();
         const bank = document.querySelector('.objects')!;
         const observer = new MutationObserver((records) => {
           for (const record of records) {
@@ -164,8 +162,6 @@ test('an audible hit flashes and meters only its owning pad', async ({ page }) =
             if (!pad?.dataset.trackId) continue;
             if (target.matches('.sound-object') && target.hasAttribute('data-hit'))
               hitTracks.add(pad.dataset.trackId);
-            if (target.matches('.object-meter') && target.style.getPropertyValue('--level'))
-              meteredTracks.add(pad.dataset.trackId);
           }
         });
         observer.observe(bank, {
@@ -175,7 +171,7 @@ test('an audible hit flashes and meters only its owning pad', async ({ page }) =
         });
         setTimeout(() => {
           observer.disconnect();
-          resolve({ hitTracks: [...hitTracks], meteredTracks: [...meteredTracks] });
+          resolve([...hitTracks]);
         }, 1500);
       }),
   );
@@ -185,8 +181,7 @@ test('an audible hit flashes and meters only its owning pad', async ({ page }) =
   const tapped = await sound.getAttribute('data-track-id');
   const motion = await observedMotion;
 
-  expect(motion.hitTracks).toEqual([tapped]);
-  expect(motion.meteredTracks).toEqual([tapped]);
+  expect(motion).toEqual([tapped]);
 });
 
 test('a hovered pad lifts about four pixels while a connected feel segment tints and presses in place', async ({
@@ -298,7 +293,7 @@ test('dial gestures persist independently and a pointer drag is undone as one co
   await expect(level).toHaveAttribute('aria-valuenow', '0');
   await firstSound.click();
   await expect(level).toHaveAttribute('aria-valuenow', '0.5');
-  // Stop queued pad changes so they cannot land on a bar boundary after the dial drag.
+  // Selecting an active pad leaves its sound on while the dial gesture settles.
   await page.getByRole('button', { name: 'Stop loop' }).click();
   await level.scrollIntoViewIfNeeded();
 
