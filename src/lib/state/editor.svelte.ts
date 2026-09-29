@@ -195,7 +195,11 @@ export class EditorState {
     const activating =
       !track.clips.length || (track.controls.muted && this.queuedLive[trackId] === undefined);
     this.selectedTrackId = trackId;
-    if (!changedSelection && !activating) return;
+    if (!changedSelection && !activating) {
+      if (this.liveStatus(trackId) === 'on' || this.liveStatus(trackId) === 'queued-off')
+        await this.toggleLive(trackId);
+      return;
+    }
     if (!track.clips.length && this.captureStatus === 'recording') {
       await this.toggleLive(trackId);
       return;
