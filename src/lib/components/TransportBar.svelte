@@ -1,9 +1,41 @@
 <script lang="ts">
   import { press } from '../motion';
   import Icon from './Icon.svelte';
+  import { TICKS_PER_BAR } from '../domain/model';
   import type { EditorState } from '../state/editor.svelte';
 
   let { editor, onShare }: { editor: EditorState; onShare: () => void } = $props();
+  type Bars = 1 | 2 | 3 | 4;
+  let pendingLength = $state<{ bars: Bars; affected: number } | undefined>(undefined);
+  const affectedBy = (bars: Bars) => {
+    const end = bars * TICKS_PER_BAR;
+    let affected = 0;
+    for (const track of editor.composition.tracks)
+      for (const clip of track.clips)
+        if (
+          clip.startTick >= end ||
+          (clip.kind === 'loop' && clip.startTick + clip.lengthTicks > end)
+        )
+          affected += 1;
+    return affected;
+  };
+  const chooseLength = (bars: Bars) => {
+    pendingLength = undefined;
+    if (bars === editor.composition.bars) return;
+    const affected = bars < editor.composition.bars ? affectedBy(bars) : 0;
+    if (affected) pendingLength = { bars, affected };
+    else editor.setBars(bars);
+  };
+  const confirmLength = () => {
+    if (!pendingLength) return;
+    const affected = affectedBy(pendingLength.bars);
+    if (affected !== pendingLength.affected) {
+      pendingLength = affected ? { ...pendingLength, affected } : undefined;
+      return;
+    }
+    editor.setBars(pendingLength.bars);
+    pendingLength = undefined;
+  };
 </script>
 
 <nav
@@ -43,9 +75,9 @@
     <div
       class="bars grid gap-0.5 text-[0.65rem] font-bold tracking-[0.08em] text-audle-text-muted uppercase max-[400px]:w-full"
       role="group"
-      aria-label="Loop length in bars"
+      aria-label="Arrangement length in bars"
     >
-      <span>Bars</span>
+      <span>Arrangement length</span>
       <div class="segments flex [&>button+button]:border-l-0">
         {#each [1, 2, 3, 4] as bars (bars)}
           <button
@@ -54,10 +86,32 @@
             aria-pressed={editor.composition.bars === bars}
             aria-label={`${bars} ${bars === 1 ? 'bar' : 'bars'}`}
             use:press
-            onclick={() => editor.setBars(bars as 1 | 2 | 3 | 4)}>{bars}</button
+            onclick={() => chooseLength(bars as Bars)}>{bars}</button
           >
         {/each}
       </div>
+      {#if pendingLength}
+        <div class="grid gap-1.5 normal-case tracking-normal" role="alert">
+          <span>
+            Shortening to {pendingLength.bars}
+            {pendingLength.bars === 1 ? 'bar' : 'bars'} trims or removes {pendingLength.affected}
+            {pendingLength.affected === 1 ? 'clip' : 'clips'}. Undo restores them.
+          </span>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              class="min-h-11 border border-audle-outline bg-audle-control px-2 text-audle-text"
+              type="button"
+              onclick={() => (pendingLength = undefined)}>Keep length</button
+            >
+            <button
+              class="min-h-11 border border-audle-record-light bg-audle-record-surface px-2 text-audle-text"
+              type="button"
+              aria-label={`Shorten arrangement to ${pendingLength.bars} ${pendingLength.bars === 1 ? 'bar' : 'bars'}`}
+              onclick={confirmLength}>Shorten arrangement</button
+            >
+          </div>
+        </div>
+      {/if}
     </div>
   </div>
   <div

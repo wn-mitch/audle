@@ -345,7 +345,7 @@ test('the Arrange playhead sweeps between transport snapshots', async ({ page })
   // A sixteenth at 140 BPM lasts about 107ms, so six frames of stepping show at most two
   // positions; a frame-rate sweep shows a new one nearly every frame.
   const distinct = await page.evaluate(async () => {
-    const grid = document.querySelector<HTMLElement>('.timeline .grid')!;
+    const grid = document.querySelector<HTMLElement>('.focused-timeline')!;
     const seen = new Set<string>();
     for (let frame = 0; frame < 6; frame += 1) {
       seen.add(grid.style.getPropertyValue('--playhead-ratio'));
@@ -359,7 +359,7 @@ test('the Arrange playhead sweeps between transport snapshots', async ({ page })
     .poll(() =>
       page.evaluate(() =>
         document
-          .querySelector<HTMLElement>('.timeline .grid')!
+          .querySelector<HTMLElement>('.focused-timeline')!
           .style.getPropertyValue('--playhead-ratio'),
       ),
     )
@@ -374,7 +374,7 @@ test('under reduced motion the Arrange playhead steps with the transport', async
   await page.getByRole('button', { name: 'Play composition' }).click();
   await expect.poll(() => transportTick(page)).toBeGreaterThan(0);
   const distinct = await page.evaluate(async () => {
-    const grid = document.querySelector<HTMLElement>('.timeline .grid')!;
+    const grid = document.querySelector<HTMLElement>('.focused-timeline')!;
     const seen = new Set<string>();
     for (let frame = 0; frame < 4; frame += 1) {
       seen.add(grid.style.getPropertyValue('--playhead-ratio'));
