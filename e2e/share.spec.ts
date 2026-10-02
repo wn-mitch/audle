@@ -60,5 +60,9 @@ test('a shared loop can be remixed into the maker’s own draft', async ({ page 
     'aria-current',
     'page',
   );
-  await expect(page.locator('.clip')).not.toHaveCount(0);
+  await expect(
+    page
+      .getByRole('region', { name: 'Focused Arrange editor' })
+      .locator('.arrange-position.occupied'),
+  ).not.toHaveCount(0);
 });

@@ -22,7 +22,7 @@
   /** Why a greyed action is greyed, so the precondition is visible without hovering. */
   const hint = $derived(
     !hasSelection
-      ? 'Click a clip, drag across several, or long-press on a phone to select.'
+      ? 'Tap a clip to move it. Use Select multiple clips for batch edits.'
       : !canSplit && !canRoll
         ? 'Split needs the playhead inside a selected loop. Roll applies to hits.'
         : !canSplit
@@ -41,12 +41,18 @@
     class="selection-status col-span-full flex items-center gap-1.5 text-[0.76rem] text-audle-text-muted"
   >
     <strong>{selected.length ? `${selected.length} selected` : 'No selection'}</strong>
-    {#if hint}<span class="hint ml-1.5 text-audle-text-dim max-[959px]:hidden">{hint}</span>{/if}
+    {#if hint}<span class="hint ml-1.5 text-audle-text-dim">{hint}</span>{/if}
   </div>
   {#if hasSelection}
     <div
       class="action-buttons flex flex-wrap gap-1.5 max-[959px]:flex-nowrap max-[959px]:overflow-x-auto max-[959px]:overscroll-x-contain max-[959px]:pb-0.5"
     >
+      <button
+        class="inline-flex min-h-11 items-center gap-1.5 border border-audle-outline bg-audle-control px-2.5 text-[0.75rem] font-bold text-audle-text shadow-[var(--audle-control-rest)] hover:enabled:bg-audle-selection-surface hover:enabled:border-audle-selection-light disabled:cursor-not-allowed disabled:bg-audle-disabled disabled:text-audle-disabled-ink max-[959px]:shrink-0"
+        disabled={!hasSelection}
+        type="button"
+        onclick={() => editor.deleteSelection()}>Delete</button
+      >
       <button
         class="inline-flex min-h-11 items-center gap-1.5 border border-audle-outline bg-audle-control px-2.5 text-[0.75rem] font-bold text-audle-text shadow-[var(--audle-control-rest)] hover:enabled:bg-audle-selection-surface hover:enabled:border-audle-selection-light disabled:cursor-not-allowed disabled:bg-audle-disabled disabled:text-audle-disabled-ink max-[959px]:shrink-0"
         disabled={!hasSelection}
@@ -105,12 +111,6 @@
             )}>Lengthen</button
         >
       {/if}
-      <button
-        class="inline-flex min-h-11 items-center gap-1.5 border border-audle-outline bg-audle-control px-2.5 text-[0.75rem] font-bold text-audle-text shadow-[var(--audle-control-rest)] hover:enabled:bg-audle-selection-surface hover:enabled:border-audle-selection-light disabled:cursor-not-allowed disabled:bg-audle-disabled disabled:text-audle-disabled-ink max-[959px]:shrink-0"
-        disabled={!hasSelection}
-        type="button"
-        onclick={() => editor.deleteSelection()}>Delete</button
-      >
       {#if canRoll}
         <span
           class="rolls ml-1.5 flex flex-wrap gap-1.5 border-l border-audle-outline-subtle pl-2 max-[959px]:flex-nowrap"

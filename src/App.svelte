@@ -9,7 +9,7 @@
   import SharedAudlePlayer from './lib/components/SharedAudlePlayer.svelte';
   import ShareSheet from './lib/components/ShareSheet.svelte';
   import StatusNotice from './lib/components/StatusNotice.svelte';
-  import TimelineEditor from './lib/components/TimelineEditor.svelte';
+  import FocusedTimeline from './lib/components/FocusedTimeline.svelte';
   import TransportBar from './lib/components/TransportBar.svelte';
   import TuningDeck from './lib/components/TuningDeck.svelte';
   import TutorialCoach from './lib/components/TutorialCoach.svelte';
@@ -390,12 +390,14 @@
         <div
           class="arrangement relative grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-2.5 max-[960px]:order-0"
         >
+          <FocusedTimeline {editor} />
           {#if !makerHasClips && !editor.loading}
             <div
               class="empty-arrangement grid justify-items-start gap-[7px] border border-audle-outline bg-audle-deck p-4 shadow-[var(--audle-deck-edge)]"
             >
-              <strong>Tap any sound.</strong><span class="text-[0.82rem] text-audle-text-muted"
-                >Tap a lane to place a sound.</span
+              <strong>Want a starting point?</strong><span
+                class="text-[0.82rem] text-audle-text-muted"
+                >Start from a beat, or hear what others made with today’s sounds.</span
               >
               <div class="empty-actions flex flex-wrap gap-2">
                 <button
@@ -430,7 +432,6 @@
             </div>
           {/if}
           <JevJam {editor} />
-          <TimelineEditor {editor} />
           <div
             class="dock sticky z-10 grid border-t border-audle-outline bg-audle-deck [inset-block-end:env(safe-area-inset-bottom,0px)]"
             class:empty={!makerHasClips}
@@ -456,7 +457,7 @@
       <div
         class="arrangement relative grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-2.5 max-[960px]:order-0"
       >
-        <JevJam editor={tutorial} /><TimelineEditor editor={tutorial} />
+        <FocusedTimeline editor={tutorial} /><JevJam editor={tutorial} />
         <div
           class="dock sticky z-10 grid border-t border-audle-outline bg-audle-deck [inset-block-end:env(safe-area-inset-bottom,0px)]"
         >

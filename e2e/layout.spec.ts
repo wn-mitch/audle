@@ -43,17 +43,28 @@ const expectCompactDeckToFit = async (page: Page) => {
   await expect.poll(() => compactDeckFitsViewport(page)).toMatchObject({ fits: true });
 };
 
-test('phone Arrange compact controls and Play dials meet their target sizes', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
-  await waitForPlayDeck(page);
-  const dialSize = (await page.locator('.dial-face').first().boundingBox())!;
-  expect(dialSize.width).toBeGreaterThanOrEqual(48);
-  expect(dialSize.height).toBeGreaterThanOrEqual(48);
-  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
-  await expect(page.getByText('Decoding sounds')).toHaveCount(0);
-  for (const selector of ['.segments button', '.knobs input[type="range"]']) {
-    for (const size of await page.locator(selector).evaluateAll((elements) =>
+test('phone Arrange hit targets and controls meet target sizes without horizontal overflow', async ({
+  page,
+}) => {
+  for (const [width, height] of [
+    [390, 844],
+    [320, 700],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await page.goto('/');
+    await waitForPlayDeck(page);
+    const dialSize = (await page.locator('.dial-face').first().boundingBox())!;
+    expect(dialSize.width).toBeGreaterThanOrEqual(48);
+    expect(dialSize.height).toBeGreaterThanOrEqual(48);
+    await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+    await expect(page.getByText('Decoding sounds')).toHaveCount(0);
+
+    const picker = page.getByRole('combobox', { name: 'Sound to arrange' });
+    await expect(picker.locator('option[value="track-8"]')).toHaveCount(1);
+    await picker.selectOption('track-8');
+    const hitTargets = page.locator('.focused-timeline .hit-positions .arrange-position');
+    await expect(hitTargets).toHaveCount(16);
+    for (const size of await hitTargets.evaluateAll((elements) =>
       elements.map((element) => {
         const box = element.getBoundingClientRect();
         return { width: box.width, height: box.height };
@@ -62,6 +73,26 @@ test('phone Arrange compact controls and Play dials meet their target sizes', as
       expect(size.width).toBeGreaterThanOrEqual(44);
       expect(size.height).toBeGreaterThanOrEqual(44);
     }
+    for (const selector of ['.segments button', '.knobs input[type="range"]']) {
+      for (const size of await page.locator(selector).evaluateAll((elements) =>
+        elements.map((element) => {
+          const box = element.getBoundingClientRect();
+          return { width: box.width, height: box.height };
+        }),
+      )) {
+        expect(size.width).toBeGreaterThanOrEqual(44);
+        expect(size.height).toBeGreaterThanOrEqual(44);
+      }
+    }
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) <=
+            window.innerWidth,
+        ),
+      )
+      .toBe(true);
   }
 });
 
